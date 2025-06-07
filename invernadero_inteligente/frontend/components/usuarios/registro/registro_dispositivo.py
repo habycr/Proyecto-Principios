@@ -1,4 +1,4 @@
-# frontend/components/dispositivos/registro/registro_dispositivo.py
+# frontend/components/usuarios/registro/registro_dispositivo.py
 import pygame
 from .elementos.input_box import InputBox
 from .elementos.boton import Boton

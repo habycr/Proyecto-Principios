@@ -1,4 +1,4 @@
-# frontend/components/dispositivos/registro/elementos/input_box.py
+# frontend/components/usuarios/registro/elementos/input_box.py
 import pygame
 
 

@@ -1,23 +1,20 @@
 # frontend/main.py
 import pygame
 import sys
-from components.dispositivos.registro.registro_dispositivo import RegistroDispositivo
+from components.usuarios.registro.registro_usuario import RegistroUsuario
 
-# Inicialización de pygame
+# Configuración inicial (igual que antes)
 pygame.init()
-
-# Configuración de la ventana
 ANCHO_VENTANA = 800
-ALTO_VENTANA = 600
+ALTO_VENTANA = 800  # Aumentado para más campos
 ventana = pygame.display.set_mode((ANCHO_VENTANA, ALTO_VENTANA))
-pygame.display.set_caption("Invernadero Inteligente - Registro de Dispositivo")
+pygame.display.set_caption("Invernadero Inteligente - Registro de Usuario")
 
-# Color de fondo
 COLOR_FONDO = (240, 240, 240)
+formulario_registro = RegistroUsuario(ANCHO_VENTANA, ALTO_VENTANA)
 
-# Crear instancia del formulario de registro
-formulario_registro = RegistroDispositivo(ANCHO_VENTANA, ALTO_VENTANA)
-
+# Bucle principal (igual que antes)
+...
 # Bucle principal
 reloj = pygame.time.Clock()
 ejecutando = True

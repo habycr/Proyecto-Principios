@@ -1,4 +1,4 @@
-# frontend/components/dispositivos/registro/elementos/boton.py
+# frontend/components/usuarios/registro/elementos/boton.py
 import pygame
 
 

@@ -1,4 +1,4 @@
-# frontend/components/dispositivos/registro/elementos/dropdown.py
+# frontend/components/usuarios/registro/elementos/dropdown.py
 import pygame
 
 
