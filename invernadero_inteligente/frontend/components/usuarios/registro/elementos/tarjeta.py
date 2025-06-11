@@ -2,6 +2,7 @@
 import pygame
 
 
+
 class Tarjeta:
     def __init__(self, x, y, ancho, alto, titulo):
         self.x = x
