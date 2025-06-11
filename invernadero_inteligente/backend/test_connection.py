@@ -19,10 +19,17 @@ def test_connection():
 
         # 3. Mostrar el primer usuario
         first_user = records[0]
+        second_user = records[1]
+
         print("\n✅ Conexión exitosa! Datos del primer usuario:")
         print(f"Nombre: {first_user.get('Nombre', 'Columna no encontrada')}")
         print(f"Email: {first_user.get('Email', 'Columna no encontrada')}")
         print(f"Rol: {first_user.get('Rol', 'Columna no encontrada')}")
+
+
+        print(f"Nombre: {second_user.get('Nombre', 'Columna no encontrada')}")
+        print(f"Email: {second_user.get('Email', 'Columna no encontrada')}")
+        print(f"Rol: {second_user.get('Rol', 'Columna no encontrada')}")
 
     except Exception as e:
         print(f"\n❌ Error: {type(e).__name__}: {str(e)}")
@@ -32,3 +39,4 @@ def test_connection():
 
 if __name__ == "__main__":
     test_connection()
+

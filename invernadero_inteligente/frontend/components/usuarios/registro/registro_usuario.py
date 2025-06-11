@@ -1,10 +1,9 @@
-# frontend/components/usuario/registro/registro_usuario.py
-# frontend/components/usuario/registro/registro_usuario.py
 import pygame
 from .elementos.input_box import InputBox
 from .elementos.boton import Boton
 from .elementos.dropdown import Dropdown
 from .elementos.password_box import PasswordBox
+from invernadero_inteligente.frontend.services.api_service import APIService  # Ajusta la ruta según tu estructura
 
 
 class RegistroUsuario:
@@ -27,11 +26,11 @@ class RegistroUsuario:
         self.campo_confirm_password = PasswordBox(x_pos, 330, 300, 40, "Confirmar contraseña*")
         self.campo_telefono = InputBox(x_pos, 400, 300, 40, "Teléfono (opcional)")
 
-        # Campos de dispositivo (RF31)
+        # Campos de dispositivo
         self.campo_numero_serie = InputBox(x_pos, 470, 300, 40, "Número de serie del dispositivo*")
         self.campo_ubicacion = InputBox(x_pos, 540, 300, 40, "Ubicación del dispositivo")
 
-        # Dropdown para rol (RF31)
+        # Dropdown para rol
         roles = ["Seleccionar rol...", "Administrador", "Usuario final", "Técnico"]
         self.dropdown_rol = Dropdown(x_pos, 610, 300, 40, roles)
 
@@ -42,8 +41,8 @@ class RegistroUsuario:
     def manejar_evento(self, evento):
         # Pasar eventos a todos los campos
         for campo in [self.campo_nombre, self.campo_email, self.campo_password,
-                      self.campo_confirm_password, self.campo_telefono,
-                      self.campo_numero_serie, self.campo_ubicacion]:
+                     self.campo_confirm_password, self.campo_telefono,
+                     self.campo_numero_serie, self.campo_ubicacion]:
             campo.manejar_evento(evento)
 
         self.dropdown_rol.manejar_evento(evento)
@@ -52,7 +51,7 @@ class RegistroUsuario:
             if self.boton_registrar.rect.collidepoint(evento.pos):
                 self.registrar_usuario()
             elif self.boton_volver.rect.collidepoint(evento.pos):
-                self.limpiar_formulario()  # <-- Ahora este método existe
+                self.limpiar_formulario()
 
     def limpiar_formulario(self):
         """Reinicia todos los campos del formulario"""
@@ -67,9 +66,8 @@ class RegistroUsuario:
         self.mensaje_error = None
         self.mensaje_exito = None
 
-
     def validar_formulario(self):
-        # Validar campos obligatorios (RF01)
+        # Validaciones básicas
         if not all([
             self.campo_nombre.texto,
             self.campo_email.texto,
@@ -79,23 +77,22 @@ class RegistroUsuario:
         ]):
             return "Complete todos los campos obligatorios"
 
-        # Validar contraseña (RNF02)
+        # Validación básica de email (puedes mejorarla)
+        if "@" not in self.campo_email.texto or "." not in self.campo_email.texto.split("@")[-1]:
+            return "Ingrese un email válido"
+
+        # Resto de validaciones...
         if self.campo_password.texto != self.campo_confirm_password.texto:
             return "Las contraseñas no coinciden"
 
         if len(self.campo_password.texto) < 8:
             return "La contraseña debe tener al menos 8 caracteres"
 
-        # Validar número de serie (RF02, RF29)
-        if not self.validar_numero_serie(self.campo_numero_serie.texto):
-            return "Número de serie inválido"
+        # Validación básica de número de serie
+        if len(self.campo_numero_serie.texto) < 5:
+            return "Número de serie inválido (mínimo 5 caracteres)"
 
         return None
-
-    def validar_numero_serie(self, numero_serie):
-        # Lógica para validar con el backend (RF02)
-        # Por ahora simulamos validación básica
-        return len(numero_serie) >= 5  # Ejemplo: "INV-12345"
 
     def registrar_usuario(self):
         error = self.validar_formulario()
@@ -104,15 +101,23 @@ class RegistroUsuario:
             self.mensaje_exito = None
             return
 
-        # Simular registro exitoso (RF01, RF31)
-        self.mensaje_exito = f"Usuario {self.campo_nombre.texto} registrado exitosamente"
-        self.mensaje_error = None
+        datos_usuario = {
+            "nombre": self.campo_nombre.texto,
+            "email": self.campo_email.texto,
+            "password": self.campo_password.texto,
+            "rol": self.dropdown_rol.seleccion_actual,
+            "telefono": self.campo_telefono.texto,
+            "numero_serie": self.campo_numero_serie.texto,
+            "ubicacion": self.campo_ubicacion.texto
+        }
 
-        # Aquí iría la lógica para:
-        # 1. Encriptar contraseña (RNF02)
-        # 2. Enviar datos al backend (RF34)
-        # 3. Crear tarjeta de equipo (RF29)
-        # 4. Asociar dispositivo (RF31)
+        respuesta = APIService.registrar_usuario(datos_usuario)
+
+        if respuesta.get("status") == "success":
+            self.mensaje_exito = respuesta["message"]
+            self.limpiar_formulario()
+        else:
+            self.mensaje_error = respuesta.get("message", "Error desconocido al registrar")
 
     def dibujar(self, superficie):
         # Título
@@ -121,8 +126,8 @@ class RegistroUsuario:
 
         # Campos
         for campo in [self.campo_nombre, self.campo_email, self.campo_password,
-                      self.campo_confirm_password, self.campo_telefono,
-                      self.campo_numero_serie, self.campo_ubicacion]:
+                     self.campo_confirm_password, self.campo_telefono,
+                     self.campo_numero_serie, self.campo_ubicacion]:
             campo.dibujar(superficie)
 
         self.dropdown_rol.dibujar(superficie)
