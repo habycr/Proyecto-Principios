@@ -75,7 +75,7 @@ class AuthService:
             log_error(f"Error en registro: {str(e)}", "auth_service.register_user")
             raise
 
-    # Añadir este método a la clase AuthService
+
     @staticmethod
     def login_user(email, password):
         try:
