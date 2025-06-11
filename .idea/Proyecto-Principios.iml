@@ -4,6 +4,7 @@
     <content url="file://$MODULE_DIR$">
       <sourceFolder url="file://$MODULE_DIR$/invernadero_inteligente/backend" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/invernadero_inteligente/frontend" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/invernadero_inteligente/scripts" isTestSource="false" />
     </content>
     <orderEntry type="jdk" jdkName="Python 3.13" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
