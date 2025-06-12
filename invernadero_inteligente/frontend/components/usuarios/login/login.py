@@ -5,7 +5,8 @@ from components.usuarios.registro.elementos.input_box import InputBox
 from components.usuarios.registro.elementos.boton import Boton
 from components.usuarios.registro.elementos.password_box import PasswordBox
 from invernadero_inteligente.frontend.services.api_service import APIService
-
+import requests
+from io import BytesIO
 
 class Login:
     def __init__(self, ancho_ventana, alto_ventana):
@@ -15,29 +16,22 @@ class Login:
         self.fuente_chica = pygame.font.Font(None, 24)
 
         # Cargar la imagen
-        self.imagen = self.imagen = Login.cargar_imagen()
+        self.imagen = self.imagen = Login.cargar_imagen_desde_github()
 
         self.crear_componentes()
         self.mensaje_error = None
         self.usuario_autenticado = None
 
     @staticmethod
-    def cargar_imagen():
-        """Carga y escala la imagen para el login"""
+    def cargar_imagen_desde_github():
+        url = "https://raw.githubusercontent.com/habycr/Proyecto-Principios/6b91ab4a49c35c8810bff80b7b1b537ab67ffff6/invernadero_inteligente/frontend/components/usuarios/registro/elementos/logo/logo.png"
         try:
-            ruta_imagen = os.path.join("https://github.com/habycr/Proyecto-Principios/blob/ac266d2b3f1a271d4f52b73d3f96a34ddd0ee818/invernadero_inteligente/frontend/components/usuarios/registro/elementos/logo/logo.png")
-
-            # Cargar imagen
-            imagen = pygame.image.load(ruta_imagen)
-
-            # Escalar la imagen (ajusta estos valores según necesites)
-            ancho_imagen = 300  # Ancho deseado en píxeles
-            alto_imagen = 150  # Alto deseado en píxeles
-            imagen = pygame.transform.scale(imagen, (ancho_imagen, alto_imagen))
-
+            response = requests.get(url)
+            response.raise_for_status()  # Lanza error si la descarga falla
+            imagen = pygame.image.load(BytesIO(response.content))
             return imagen
         except Exception as e:
-            print(f"No se pudo cargar la imagen: {e}")
+            print(f"Error al cargar imagen desde GitHub: {e}")
             return None
 
     def crear_componentes(self):
