@@ -25,7 +25,7 @@ class Login:
     def cargar_imagen():
         """Carga y escala la imagen para el login"""
         try:
-            ruta_imagen = os.path.join("Proyecto-Principios/frontend/components/usuarios/registro/elementos/logo/logo.png")
+            ruta_imagen = os.path.join("https://github.com/habycr/Proyecto-Principios/blob/ac266d2b3f1a271d4f52b73d3f96a34ddd0ee818/invernadero_inteligente/frontend/components/usuarios/registro/elementos/logo/logo.png")
 
             # Cargar imagen
             imagen = pygame.image.load(ruta_imagen)
