@@ -8,7 +8,7 @@ from invernadero_inteligente.frontend.config import config
 from invernadero_inteligente.frontend.components.usuarios.registro.elementos.boton import Boton
 from invernadero_inteligente.frontend.components.usuarios.registro.elementos.tarjeta import Tarjeta  # Asumiré que creas este componente
 from invernadero_inteligente.frontend.services.api_service import APIService
-
+from io import BytesIO
 
 class Dashboard:
     def __init__(self, ancho_ventana, alto_ventana, usuario):
@@ -19,6 +19,8 @@ class Dashboard:
         self.fuente_normal = pygame.font.Font(None, 28)
         # URL base del ESP32 - AJUSTA ESTO CON TU IP REAL
         self.esp32_base_url = "http://192.168.0.26"
+        # Cargar la imagen
+        self.imagen = self.imagen = Dashboard.cargar_imagen_desde_github()
         # Estados de los dispositivos (False = apagado, True = encendido)
         self.estados_dispositivos = {
             "bomba_agua": False,
@@ -68,7 +70,7 @@ class Dashboard:
             "bomba_agua": Boton(
                 x=50,
                 y=150,
-                ancho=200,
+                ancho=260,
                 alto=50,
                 texto="Activar Bomba de Agua",
                 color=config.COLOR_BUTTON  # Verde por defecto (apagado)
@@ -84,7 +86,7 @@ class Dashboard:
             "uv": Boton(
                 x=50,
                 y=290,
-                ancho=200,
+                ancho=260,
                 alto=50,
                 texto="Activar Luz Ultravioleta",
                 color=config.COLOR_BUTTON
@@ -162,6 +164,18 @@ class Dashboard:
                     return None
         return None
 
+    @staticmethod
+    def cargar_imagen_desde_github():
+        url = "https://raw.githubusercontent.com/habycr/Proyecto-Principios/6b91ab4a49c35c8810bff80b7b1b537ab67ffff6/invernadero_inteligente/frontend/components/usuarios/registro/elementos/logo/logo.png"
+        try:
+            response = requests.get(url)
+            response.raise_for_status()  # Lanza error si la descarga falla
+            imagen = pygame.image.load(BytesIO(response.content))
+            return imagen
+        except Exception as e:
+            print(f"Error al cargar imagen desde GitHub: {e}")
+            return None
+
 
 
     def dibujar(self, superficie):
@@ -194,3 +208,14 @@ class Dashboard:
             (150, 150, 150)
         )
         superficie.blit(mensaje, (20, self.alto - 40))
+
+        # Dibujar imagen en la parte inferior
+        # Redimensionar la imagen a 20x20 píxeles
+        if self.imagen:
+            imagen_pequena = pygame.transform.scale(self.imagen, (140, 90))
+
+            # Posición de la imagen (esquina superior izquierda - 0,0)
+            pos_x = 480
+            pos_y = 20
+
+            superficie.blit(imagen_pequena, (pos_x, pos_y))
