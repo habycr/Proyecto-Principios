@@ -40,14 +40,22 @@ class User:
         """Guarda el usuario en Google Sheets"""
         db = GoogleSheetsDB()
         worksheet = db.get_worksheet("Usuarios")
+
+        # Verificar si es una hoja nueva y necesita encabezados
+        if len(worksheet.get_all_values()) == 0:
+            worksheet.append_row([
+                "Nombre", "Email", "Rol", "Teléfono",
+                "numero_serie", "Ubicación", "Password", "Fecha Registro"
+            ])
+
         worksheet.append_row([
             self.nombre,
             self.email,
             self.rol,
             self.telefono,
-            self.numero_serie,
+            self.numero_serie,  # Asegurar que el nombre del campo coincide
             self.ubicacion,
-            self.password_hash, # Asegúrate de que esto es el hash (no la contraseña en texto plano)
+            self.password_hash,
             self.fecha_registro
         ])
 
@@ -83,6 +91,40 @@ class User:
         except Exception as e:
             print(f"Error buscando usuario: {e}")
             return None
+
+    @staticmethod
+    def device_assigned_to_other_user(serial_number, current_email):
+        """Verifica si el dispositivo ya está asignado a otro usuario diferente"""
+        db = GoogleSheetsDB()
+        try:
+            worksheet = db.get_worksheet("Usuarios")
+            records = worksheet.get_all_records()
+
+            for user in records:
+                # Comparar el número de serie ignorando mayúsculas/minúsculas y espacios
+                if (str(user.get('numero_serie', '')).strip().lower() == str(serial_number).strip().lower()):
+                    # Verificar si el email asociado es diferente al que está intentando registrarse
+                    if str(user.get('Email', '')).strip().lower() != str(current_email).strip().lower():
+                        return True
+            return False
+        except Exception as e:
+            print(f"Error verificando asignación de dispositivo: {e}")
+            return True  # Por seguridad, asumimos que está asignado si hay error
+
+    @staticmethod
+    def is_device_assigned(serial_number):
+        db = GoogleSheetsDB()
+        try:
+            worksheet = db.get_worksheet("Usuarios")
+            records = worksheet.get_all_records()
+            for user in records:
+                seriales = [s.strip().lower() for s in str(user.get('numero_serie', '')).split(',')]
+                if serial_number.strip().lower() in seriales:
+                    return True
+            return False
+        except Exception as e:
+            print(f"Error verificando asignación de dispositivo: {e}")
+            return True
 
     @staticmethod
     def verify_password(hashed_password, input_password):
