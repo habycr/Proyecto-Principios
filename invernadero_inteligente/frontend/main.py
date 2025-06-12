@@ -24,7 +24,7 @@ ESTADOS = {
 }
 
 
-estado_actual = "LOGIN"
+estado_actual = "CONFIGURACION"
 usuario_actual = None
 
 
