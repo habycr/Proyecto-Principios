@@ -1,6 +1,8 @@
 # frontend/components/dashboard/dashboard.py
 import pygame
 import sys
+
+from components.dashboard.configuracion import Configuracion
 from invernadero_inteligente.frontend.config import config
 from invernadero_inteligente.frontend.components.usuarios.registro.elementos.boton import Boton
 from invernadero_inteligente.frontend.components.usuarios.registro.elementos.tarjeta import Tarjeta  # Asumiré que creas este componente
@@ -26,7 +28,16 @@ class Dashboard:
             texto="Cerrar sesión",
             color=config.COLOR_BUTTON_SECONDARY
         )
+        # Botón de configuración
+        self.boton_configuracion = Boton(
+            x=self.ancho - 170,
+            y=80,
+            ancho=150,
+            alto=40,
+            texto="Configuración",
+            color=config.COLOR_BUTTON_SECONDARY
 
+        )
         # Botón principal de ejemplo
         self.boton_principal = Boton(
             x=self.ancho // 2 - 100,
@@ -41,9 +52,14 @@ class Dashboard:
         if evento.type == pygame.MOUSEBUTTONDOWN:
             if self.boton_cerrar.rect.collidepoint(evento.pos):
                 return "logout"
+            elif self.boton_configuracion.rect.collidepoint(evento.pos):
+                return Configuracion()
+
             elif self.boton_principal.rect.collidepoint(evento.pos):
                 print("Botón principal presionado")  # Acción de ejemplo
         return None
+
+
 
     def dibujar(self, superficie):
         # Fondo claro
@@ -64,6 +80,7 @@ class Dashboard:
         # Dibujar botones
         self.boton_cerrar.dibujar(superficie)
         self.boton_principal.dibujar(superficie)
+        self.boton_configuracion.dibujar(superficie)
 
         # Mensaje inferior
         mensaje = pygame.font.Font(None, 24).render(

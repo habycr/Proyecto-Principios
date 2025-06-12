@@ -5,6 +5,7 @@ from components.dashboard.dashboard import Dashboard
 from invernadero_inteligente.frontend.config import config
 from components.usuarios.login.login import Login
 from components.usuarios.registro.registro_usuario import RegistroUsuario
+from components.dashboard.configuracion.configuracion import Configuracion
 
 
 # Configuración inicial
@@ -17,11 +18,13 @@ pygame.display.set_caption(config.APP_TITLE)
 ESTADOS = {
     "LOGIN": Login(*config.WINDOW_SIZE),
     "REGISTRO": RegistroUsuario(*config.WINDOW_SIZE),
-    "DASHBOARD": None  # Se inicializará después del login
+    "DASHBOARD": None,  # Se inicializará después del login
+    "CONFIGURACION": Configuracion(*config.WINDOW_SIZE)
+
 }
 
 
-estado_actual = "LOGIN"
+estado_actual = "CONFIGURACION"
 usuario_actual = None
 
 
@@ -52,6 +55,9 @@ while ejecutando:
             elif estado_actual == "REGISTRO" and ESTADOS["REGISTRO"].mensaje_exito:
                 ESTADOS["LOGIN"].limpiar_formulario()
                 estado_actual = "LOGIN"
+            elif estado_actual=="CONFIGURACION":
+                pass
+
 
     # Dibujar
     ventana.fill(config.BACKGROUND_COLOR)
