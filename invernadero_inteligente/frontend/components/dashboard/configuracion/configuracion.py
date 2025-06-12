@@ -17,7 +17,7 @@ class Configuracion:
         self.fuente_titulo = pygame.font.Font(None, 36)
         self.fuente_normal = pygame.font.Font(None, 24)
         self.fuente_chica = pygame.font.Font(None, 18)
-        self.ANCHO_MENU_SELECCION = 150  # Ancho del menú de selección
+        self.ANCHO_MENU_SELECCION = 180  # Ancho aumentado para mejor visualización
 
         # Opciones para los menús de selección
         self.opciones_tiempo = ["30s", "1 minuto", "2 minutos", "3 minutos", "5 minutos"]
@@ -26,8 +26,22 @@ class Configuracion:
         # Valores seleccionados (inicialmente 5 minutos)
         self.valores_seleccionados = {param: "5 minutos" for param in self.parametros}
         self.menu_abierto = None
-        self.scroll_y = 0
-        self.arrastrando_scroll = False
+        self.rects_radios = []  # Para almacenar posiciones de los radio buttons
+
+        # Nuevas variables para el campo de texto y botón de confirmación
+        self.texto_dispositivo = ""
+        self.activo_campo_texto = False
+        self.rect_campo_texto = pygame.Rect(50, self.alto - 180, 200, 40)
+        self.boton_confirmar = Boton(
+            260,
+            self.alto - 180,
+            150,
+            40,
+            "Confirmar",
+            config.COLOR_BUTTON_SECONDARY
+        )
+        self.mostrar_aviso = False
+        self.tiempo_aviso = 0
 
         self.crear_componentes()
 
@@ -37,6 +51,9 @@ class Configuracion:
 
         # Subtítulo de ajustes
         self.titulo_ajustes = self.fuente_normal.render("Ajuste de parámetros", True, (0, 0, 0))
+
+        #Título de Núemro de Dispositivo
+        self.titulo_numerodeserie = self.fuente_normal.render("Para añadir dispositivos: ", True, (0, 0, 0))
 
         # Botón para parámetros por defecto
         self.boton_default = Boton(
@@ -62,9 +79,6 @@ class Configuracion:
         self.rects_parametros = {}
         self.rects_botones_seleccion = {}
         self.rects_menu_seleccion = None
-        self.rects_opciones_menu = []
-        self.rects_radios = []
-        self.scroll_bar_rect = None
 
         # Espaciado vertical aumentado entre parámetros (120 píxeles)
         pos_y = 120
@@ -80,28 +94,28 @@ class Configuracion:
                 if evento.button == 1:  # Clic izquierdo
                     mouse_pos = evento.pos
 
-                    # Verificar clic en la barra de scroll
-                    if self.scroll_bar_rect and self.scroll_bar_rect.collidepoint(mouse_pos):
-                        self.arrastrando_scroll = True
-                        return None
-
-                    # Verificar clic en los radio buttons (sin clip)
+                    # Verificar clic en los radio buttons
                     for i, radio_rect in enumerate(self.rects_radios):
-                        # Ajustar posición del rectángulo según el scroll
-                        adjusted_radio_rect = pygame.Rect(
-                            radio_rect.x,
-                            radio_rect.y + self.scroll_y,
-                            radio_rect.width,
-                            radio_rect.height
-                        )
-
-                        if adjusted_radio_rect.collidepoint(mouse_pos):
+                        if radio_rect.collidepoint(mouse_pos):
                             nuevo_valor = self.opciones_tiempo[i]
-                            if self.valores_seleccionados[self.menu_abierto] != nuevo_valor:
-                                self.valores_seleccionados[self.menu_abierto] = nuevo_valor
-                                print(f"Configuración actualizada - {self.menu_abierto}: {nuevo_valor}")
-                            else:
-                                print(f"El valor para {self.menu_abierto} se mantiene: {nuevo_valor}")
+                            self.valores_seleccionados[self.menu_abierto] = nuevo_valor
+                            print(f"Configuración actualizada - {self.menu_abierto}: {nuevo_valor}")
+                            self.menu_abierto = None  # Cerrar menú después de seleccionar
+                            return None
+
+                    # Verificar clic en las opciones del menú (área de texto)
+                    for i, opcion in enumerate(self.opciones_tiempo):
+                        opcion_rect = pygame.Rect(
+                            self.rects_menu_seleccion.x,
+                            self.rects_menu_seleccion.y + i * 40,
+                            self.rects_menu_seleccion.width,
+                            40
+                        )
+                        if opcion_rect.collidepoint(mouse_pos):
+                            nuevo_valor = self.opciones_tiempo[i]
+                            self.valores_seleccionados[self.menu_abierto] = nuevo_valor
+                            print(f"Configuración actualizada - {self.menu_abierto}: {nuevo_valor}")
+                            self.menu_abierto = None
                             return None
 
                     # Cerrar menú si se hace clic fuera
@@ -109,31 +123,37 @@ class Configuracion:
                         self.menu_abierto = None
                     return None
 
-            elif evento.type == pygame.MOUSEBUTTONUP:
-                if evento.button == 1:
-                    self.arrastrando_scroll = False
+        # Manejar eventos del campo de texto
+        if evento.type == pygame.MOUSEBUTTONDOWN:
+            if evento.button == 1:  # Clic izquierdo
+                mouse_pos = evento.pos
 
-            elif evento.type == pygame.MOUSEMOTION and self.arrastrando_scroll:
-                # Manejar arrastre de la barra de scroll
-                menu_top = self.rects_menu_seleccion.y
-                relative_y = evento.pos[1] - menu_top
-                total_height = len(self.opciones_tiempo) * 40
-                visible_ratio = self.rects_menu_seleccion.height / total_height
-                scroll_ratio = relative_y / self.rects_menu_seleccion.height
-                self.scroll_y = -int((scroll_ratio - visible_ratio / 2) * total_height)
+                # Activar/desactivar campo de texto
+                if self.rect_campo_texto.collidepoint(mouse_pos):
+                    self.activo_campo_texto = True
+                else:
+                    self.activo_campo_texto = False
 
-                # Limitar el scroll
-                max_scroll = max(0, total_height - self.rects_menu_seleccion.height)
-                self.scroll_y = max(-max_scroll, min(0, self.scroll_y))
-                return None
+                # Manejar botón de confirmar
+                if self.boton_confirmar.rect.collidepoint(mouse_pos) and self.texto_dispositivo:
+                    print(f"Dispositivo inscrito: {self.texto_dispositivo}")
+                    self.mostrar_aviso = True
+                    self.tiempo_aviso = pygame.time.get_ticks()
+                    return None
 
-            elif evento.type == pygame.MOUSEWHEEL:
-                # Manejar scroll del mouse
-                self.scroll_y += evento.y * 20
-                total_height = len(self.opciones_tiempo) * 40
-                max_scroll = max(0, total_height - self.rects_menu_seleccion.height)
-                self.scroll_y = max(-max_scroll, min(0, self.scroll_y))
-                return None
+        # Manejar entrada de texto
+        if self.activo_campo_texto and evento.type == pygame.KEYDOWN:
+            if evento.key == pygame.K_RETURN:
+                if self.texto_dispositivo:
+                    print(f"Dispositivo inscrito: {self.texto_dispositivo}")
+                    self.mostrar_aviso = True
+                    self.tiempo_aviso = pygame.time.get_ticks()
+            elif evento.key == pygame.K_BACKSPACE:
+                self.texto_dispositivo = self.texto_dispositivo[:-1]
+            else:
+                # Limitar la longitud del texto y solo permitir caracteres alfanuméricos
+                if len(self.texto_dispositivo) < 20 and evento.unicode.isalnum():
+                    self.texto_dispositivo += evento.unicode
 
         # Resto de eventos solo si no hay menú abierto
         if self.menu_abierto is None and evento.type == pygame.MOUSEBUTTONDOWN:
@@ -159,7 +179,6 @@ class Configuracion:
             for param in self.parametros:
                 if self.rects_botones_seleccion[param].collidepoint(evento.pos):
                     self.menu_abierto = param
-                    self.scroll_y = 0
                     print(f"Menú de selección abierto para {param}. Valor actual: {self.valores_seleccionados[param]}")
                     return None
 
@@ -174,6 +193,9 @@ class Configuracion:
         # Dibujar subtítulo de ajustes
         pantalla.blit(self.titulo_ajustes, (50, 80))
 
+        #Dibujar subtítulo de número de dispositivo
+        pantalla.blit(self.titulo_numerodeserie, (50, 600))
+
         # Dibujar parámetros y sus botones de selección
         for param in self.parametros:
             texto_param = self.fuente_normal.render(param, True, (0, 0, 0))
@@ -185,76 +207,77 @@ class Configuracion:
             pantalla.blit(texto_valor,
                           (self.rects_botones_seleccion[param].x + 10, self.rects_botones_seleccion[param].y + 5))
 
-        # Dibujar menú de selección si hay uno abierto
+        # Dibujar campo de texto para dispositivo
+        pygame.draw.rect(pantalla, (255, 255, 255), self.rect_campo_texto)
+        pygame.draw.rect(pantalla, (0, 0, 0) if self.activo_campo_texto else (100, 100, 100), self.rect_campo_texto, 2)
+
+        # Dibujar texto ingresado o placeholder
+        if self.texto_dispositivo or self.activo_campo_texto:
+            texto_surface = self.fuente_normal.render(self.texto_dispositivo, True, (0, 0, 0))
+            pantalla.blit(texto_surface, (self.rect_campo_texto.x + 10, self.rect_campo_texto.y + 10))
+        else:
+            texto_placeholder = self.fuente_normal.render("Nombre dispositivo", True, (150, 150, 150))
+            pantalla.blit(texto_placeholder, (self.rect_campo_texto.x + 10, self.rect_campo_texto.y + 10))
+
+        # Dibujar botón de confirmar
+        self.boton_confirmar.dibujar(pantalla)
+
+        # Dibujar botones (si no hay menú abierto)
+        self.boton_default.dibujar(pantalla)
+        self.boton_volver.dibujar(pantalla)
+
+        # Dibujar aviso si es necesario
+        if self.mostrar_aviso:
+            if pygame.time.get_ticks() - self.tiempo_aviso < 2000:  # Mostrar por 2 segundos
+                aviso = self.fuente_normal.render("Dispositivo inscrito!", True, (0, 150, 0))
+                pantalla.blit(aviso, (self.ancho // 2 - aviso.get_width() // 2, self.alto - 220))
+            else:
+                self.mostrar_aviso = False
+
+        # Dibujar menú de selección si hay uno abierto (sobre todos los elementos)
         if self.menu_abierto:
             index_param = self.parametros.index(self.menu_abierto)
             pos_y_base = 120 + index_param * 120 + 40
 
-            # Crear rectángulo del menú de selección (mostrar 3 opciones)
-            menu_height = 120  # 3 opciones * 40px cada una
-            self.rects_menu_seleccion = pygame.Rect(260, pos_y_base, self.ANCHO_MENU_SELECCION, menu_height)
+            # Calcular altura necesaria para todas las opciones
+            menu_height = len(self.opciones_tiempo) * 40
+            # Ajustar posición si el menú se sale de la pantalla
+            if pos_y_base + menu_height > self.alto - 100:
+                pos_y_base = self.alto - 100 - menu_height
 
-            # Dibujar fondo del menú
+            # Crear rectángulo del menú de selección
+            self.rects_menu_seleccion = pygame.Rect(
+                260,
+                pos_y_base,
+                self.ANCHO_MENU_SELECCION,
+                menu_height
+            )
+
+            # Dibujar fondo del menú con sombra para efecto flotante
+            pygame.draw.rect(pantalla, (220, 220, 220), self.rects_menu_seleccion.inflate(5, 5))
             pygame.draw.rect(pantalla, (240, 240, 240), self.rects_menu_seleccion)
             pygame.draw.rect(pantalla, (0, 0, 0), self.rects_menu_seleccion, 2)
 
-            # Configurar área de recorte solo para el dibujo
-            old_clip = pantalla.get_clip()
-            pantalla.set_clip(self.rects_menu_seleccion)
-
             # Dibujar opciones con radio buttons
-            self.rects_opciones_menu = []
             self.rects_radios = []
             for i, opcion in enumerate(self.opciones_tiempo):
-                opcion_y = pos_y_base + i * 40 + self.scroll_y
+                opcion_y = pos_y_base + i * 40
                 opcion_rect = pygame.Rect(260, opcion_y, self.ANCHO_MENU_SELECCION, 40)
-                self.rects_opciones_menu.append(opcion_rect)
 
-                # Dibujar radio button (bolita)
-                radio_rect = pygame.Rect(265, opcion_y + 12, 16, 16)
-                self.rects_radios.append(pygame.Rect(265, opcion_y + 12, 16, 16))  # Guardar posición real
-
-                # Resaltar la opción si el mouse está sobre ella
+                # Resaltar opción bajo el mouse
                 mouse_pos = pygame.mouse.get_pos()
-                if opcion_rect.collidepoint(mouse_pos[0], mouse_pos[1] - self.scroll_y):
+                if opcion_rect.collidepoint(mouse_pos):
                     pygame.draw.rect(pantalla, (220, 220, 220), opcion_rect)
 
-                # Dibujar radio button (círculo exterior)
+                # Dibujar radio button (guardar posición para detección de clics)
+                radio_rect = pygame.Rect(265, opcion_y + 12, 16, 16)
+                self.rects_radios.append(radio_rect)
+
                 pygame.draw.circle(pantalla, (0, 0, 0), (radio_rect.x + 8, radio_rect.y + 8), 8, 1)
 
-                # Rellenar el radio button si está seleccionado
                 if self.valores_seleccionados[self.menu_abierto] == opcion:
                     pygame.draw.circle(pantalla, (0, 100, 255), (radio_rect.x + 8, radio_rect.y + 8), 6)
 
                 # Dibujar texto de la opción
                 texto_opcion = self.fuente_chica.render(opcion, True, (0, 0, 0))
                 pantalla.blit(texto_opcion, (radio_rect.x + 25, radio_rect.y - 4))
-
-            pantalla.set_clip(old_clip)
-
-            # Dibujar barra de scroll si es necesario
-            if len(self.opciones_tiempo) * 40 > menu_height:
-                total_height = len(self.opciones_tiempo) * 40
-                visible_ratio = menu_height / total_height
-                scroll_ratio = -self.scroll_y / total_height
-
-                scroll_height = max(20, int(menu_height * visible_ratio))
-                scroll_pos = int(scroll_ratio * (menu_height - scroll_height))
-
-                # Dibujar track de la barra
-                pygame.draw.rect(pantalla, (200, 200, 200),
-                                 (260 + self.ANCHO_MENU_SELECCION - 12, pos_y_base, 10, menu_height))
-                # Dibujar barra deslizante
-                self.scroll_bar_rect = pygame.Rect(
-                    260 + self.ANCHO_MENU_SELECCION - 12,
-                    pos_y_base + scroll_pos,
-                    10,
-                    scroll_height
-                )
-                pygame.draw.rect(pantalla, (120, 120, 120), self.scroll_bar_rect)
-                pygame.draw.rect(pantalla, (80, 80, 80), self.scroll_bar_rect, 1)
-
-        # Dibujar botones (si no hay menú abierto)
-        if self.menu_abierto is None:
-            self.boton_default.dibujar(pantalla)
-            self.boton_volver.dibujar(pantalla)
