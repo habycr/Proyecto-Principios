@@ -53,7 +53,7 @@ class Dashboard:
             if self.boton_cerrar.rect.collidepoint(evento.pos):
                 return "logout"
             elif self.boton_configuracion.rect.collidepoint(evento.pos):
-                return Configuracion()
+                return "configuracion"
 
             elif self.boton_principal.rect.collidepoint(evento.pos):
                 print("Botón principal presionado")  # Acción de ejemplo
