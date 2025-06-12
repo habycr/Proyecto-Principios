@@ -19,7 +19,7 @@ ESTADOS = {
     "LOGIN": Login(*config.WINDOW_SIZE),
     "REGISTRO": RegistroUsuario(*config.WINDOW_SIZE),
     "DASHBOARD": None,  # Se inicializará después del login
-    "CONFIGURACION": Configuracion(*config.WINDOW_SIZE)
+    "CONFIGURACION": None
 
 }
 
@@ -52,7 +52,7 @@ while ejecutando:
                     ESTADOS["LOGIN"].limpiar_formulario()
                     estado_actual = "LOGIN"
                 elif resultado == "configuracion":
-                    ESTADOS["CONFIGURACION"] = Configuracion(*config.WINDOW_SIZE)
+                    ESTADOS["CONFIGURACION"] = Configuracion(*config.WINDOW_SIZE, usuario_actual)
                     estado_actual = "CONFIGURACION"
 
             elif estado_actual == "REGISTRO" and ESTADOS["REGISTRO"].mensaje_exito:
