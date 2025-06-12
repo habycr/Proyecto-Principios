@@ -2,21 +2,34 @@
 import requests
 import os
 import sys
+import pygame
+import io
+import base64
+from datetime import datetime
+
 # Añadir el directorio frontend al path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
 from ..config import config
+
 
 class APIService:
     @staticmethod
-    def _make_request(endpoint, data):
+    def _make_request(endpoint, data=None, method='POST', params=None):
         try:
-            response = requests.post(
-                f"{config.BACKEND_URL}/api{endpoint}",
-                json=data,
-                headers={'Content-Type': 'application/json'},
-                timeout=20
-            )
+            if method == 'POST':
+                response = requests.post(
+                    f"{config.BACKEND_URL}/api{endpoint}",
+                    json=data,
+                    headers={'Content-Type': 'application/json'},
+                    timeout=config.API_TIMEOUT
+                )
+            else:  # GET
+                response = requests.get(
+                    f"{config.BACKEND_URL}/api{endpoint}",
+                    params=params,
+                    timeout=config.API_TIMEOUT
+                )
+
             if not response.ok:
                 return {
                     "status": "error",
@@ -28,6 +41,7 @@ class APIService:
         except requests.exceptions.RequestException as e:
             return {"status": "error", "message": f"Error de conexión: {str(e)}"}
 
+    # Métodos de autenticación
     @staticmethod
     def registrar_usuario(data):
         return APIService._make_request('/register', data)
@@ -36,13 +50,72 @@ class APIService:
     def iniciar_sesion(credenciales):
         return APIService._make_request('/login', credenciales)
 
+    # Métodos de dispositivos
     @staticmethod
     def obtener_dispositivo(numero_serie):
+        return APIService._make_request(f'/dispositivo/{numero_serie}', method='GET')
+
+    # Métodos de datos
+    @staticmethod
+    def obtener_datos_historicos(dispositivo, tipo_dato, limit=100):
+        params = {
+            'dispositivo': dispositivo,
+            'tipo_dato': tipo_dato,
+            'limit': limit
+        }
+        return APIService._make_request('/data/historical', method='GET', params=params)
+
+    @staticmethod
+    def obtener_grafica(dispositivo, tipo_dato, limit=100):
+        params = {
+            'dispositivo': dispositivo,
+            'tipo_dato': tipo_dato,
+            'limit': limit
+        }
+        response = APIService._make_request('/data/chart', method='GET', params=params)
+
+        if response.get('status') != 'success':
+            return APIService._crear_superficie_error(response.get('message', 'Error al cargar gráfica'))
+
+        try:
+            return APIService._base64_a_surface(response['chart'])
+        except Exception as e:
+            print(f"Error procesando gráfica: {e}")
+            return APIService._crear_superficie_error("Formato de gráfica inválido")
+
+    @staticmethod
+    def verificar_estado_servidor():
         try:
             response = requests.get(
-                f"{config.BACKEND_URL}/api/dispositivo/{numero_serie}",
-                timeout=config.API_TIMEOUT
+                f"{config.BACKEND_URL}/api/health",
+                timeout=5
             )
-            return response.json()
-        except requests.exceptions.RequestException as e:
-            return {"status": "error", "message": str(e)}
+            return response.status_code == 200
+        except requests.exceptions.RequestException:
+            return False
+
+    # Métodos auxiliares privados
+    @staticmethod
+    def _base64_a_surface(chart_data):
+        """Convierte base64 a superficie Pygame"""
+        image_data = base64.b64decode(chart_data.split(',')[1])
+        image_file = io.BytesIO(image_data)
+        return pygame.image.load(image_file).convert_alpha()
+
+    @staticmethod
+    def _crear_superficie_error(mensaje):
+        """Crea una superficie de error para mostrar en Pygame"""
+        surface = pygame.Surface((800, 400))
+        surface.fill(config.COLOR_ERROR)
+        font = pygame.font.SysFont(None, 24)
+        text = font.render(mensaje, True, (255, 255, 255))
+        surface.blit(text, (50, 50))
+        return surface
+
+    @staticmethod
+    def agregar_dispositivo(email, serial):
+        return APIService._make_request('/agregar_dispositivo', {
+            "email": email,
+            "serial": serial
+        }, method='POST')
+

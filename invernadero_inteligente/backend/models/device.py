@@ -37,25 +37,34 @@ class Device:
 
     @staticmethod
     def associate_to_user(serial_number, user_email):
-
-        """Asocia un dispositivo a un usuario"""
-        print(f"Asociando dispositivo {serial_number} a {user_email}")  # Debug
+        """Asocia un dispositivo a un usuario de manera atómica"""
         db = GoogleSheetsDB()
-        worksheet = db.get_worksheet("Dispositivos")
+        try:
+            worksheet = db.get_worksheet("Dispositivos")
 
-        # Si es hoja nueva, crear encabezados
-        if len(worksheet.get_all_values()) == 0:
-            worksheet.append_row(["Número de Serie", "Usuario Asociado", "Modelo", "Estado"])
+            # Buscar todas las ocurrencias del número de serie
+            cells = worksheet.findall(str(serial_number).strip())
 
-        # Buscar la fila del dispositivo y actualizar
-        cells = worksheet.findall(str(serial_number))
-        for cell in cells:
-            if cell.col == 1:  # Columna de número de serie
-                worksheet.update_cell(cell.row, 2, user_email)  # Columna Usuario Asociado
-                worksheet.update_cell(cell.row, 4, "Asignado")  # Actualizar estado
-                return True
+            if not cells:
+                raise ValueError(f"Dispositivo {serial_number} no encontrado")
 
-        raise ValueError(f"Dispositivo {serial_number} no encontrado")
+            for cell in cells:
+                if cell.col == 1:  # Columna de número de serie
+                    # Verificar que no esté ya asignado a otro usuario
+                    current_user = worksheet.cell(cell.row, 2).value
+                    if current_user and str(current_user).strip().lower() != str(user_email).strip().lower():
+                        raise ValueError(f"Dispositivo ya asignado a otro usuario: {current_user}")
+
+                    # Actualizar asignación
+                    worksheet.update_cell(cell.row, 2, user_email)  # Usuario Asociado
+                    worksheet.update_cell(cell.row, 4, "Asignado")  # Estado
+                    return True
+
+            raise ValueError(f"Dispositivo {serial_number} no encontrado en columna 1")
+
+        except Exception as e:
+            print(f"Error asociando dispositivo: {e}")
+            raise
 
     @staticmethod
     def obtener_por_serie(serial_number):
