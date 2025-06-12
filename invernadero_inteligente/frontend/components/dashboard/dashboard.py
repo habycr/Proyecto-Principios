@@ -1,13 +1,13 @@
 # frontend/components/dashboard/dashboard.py
+import threading
+import time
 import pygame
-import sys
 import requests
 
-from components.dashboard.configuracion import Configuracion
 from invernadero_inteligente.frontend.config import config
 from invernadero_inteligente.frontend.components.usuarios.registro.elementos.boton import Boton
-from invernadero_inteligente.frontend.components.usuarios.registro.elementos.tarjeta import Tarjeta  # Asumiré que creas este componente
-from invernadero_inteligente.frontend.services.api_service import APIService
+from invernadero_inteligente.firmware import esp32cam_to_drive
+from invernadero_inteligente.firmware.timelapse_viewer import TimelapseViewer
 from io import BytesIO
 
 class Dashboard:
@@ -29,6 +29,8 @@ class Dashboard:
             "techo": False
         }
         self.crear_componentes()
+        self.autocapture = False
+        self.capture_thread = None
 
     def enviar_comando(self, dispositivo, accion):
         try:
@@ -64,6 +66,26 @@ class Dashboard:
             color=config.COLOR_BUTTON_SECONDARY
 
         )
+        # Botón para capturar imagen
+        self.boton_capturar = Boton(
+            x=300,
+            y=150,
+            ancho=200,
+            alto=50,
+            texto="Capturar Foto",
+            color=config.COLOR_BUTTON_SECONDARY
+        )
+
+        # Botón para abrir timelapse
+        self.boton_timelapse = Boton(
+            x=300,
+            y=220,
+            ancho=200,
+            alto=50,
+            texto="Ver Timelapse",
+            color=config.COLOR_BUTTON_SECONDARY
+        )
+
 
         # Botones de control de dispositivos
         self.botones_dispositivos = {
@@ -119,6 +141,16 @@ class Dashboard:
 
             elif self.boton_principal.rect.collidepoint(evento.pos):
                 print("Botón principal presionado")  # Acción de ejemplo
+
+            elif self.boton_capturar.rect.collidepoint(evento.pos):
+                print("Capturando y subiendo imagen")
+
+                esp32cam_to_drive.take_photo_and_upload()
+                print("Imagen capturada con exito")
+
+            elif self.boton_timelapse.rect.collidepoint(evento.pos):
+                print("Timelapse presionado")
+                self.ver_timelapse()
 
             # Manejar clics en los botones de dispositivos
             for dispositivo, boton in self.botones_dispositivos.items():
@@ -177,7 +209,6 @@ class Dashboard:
             return None
 
 
-
     def dibujar(self, superficie):
         # Fondo claro
         superficie.fill(config.BACKGROUND_COLOR)
@@ -198,6 +229,8 @@ class Dashboard:
         self.boton_cerrar.dibujar(superficie)
         self.boton_principal.dibujar(superficie)
         self.boton_configuracion.dibujar(superficie)
+        self.boton_capturar.dibujar(superficie)
+        self.boton_timelapse.dibujar(superficie)
         # Dibujar botones de dispositivos
         for boton in self.botones_dispositivos.values():
             boton.dibujar(superficie)
@@ -219,3 +252,29 @@ class Dashboard:
             pos_y = 20
 
             superficie.blit(imagen_pequena, (pos_x, pos_y))
+    def iniciar_captura(self, intervalo):
+        intervalo = 300
+        if not self.autocapture:
+            self.autocapture = True
+            self.capture_thread = threading.Thread(target=self._captura_loop, args=(intervalo,), daemon=True)
+            self.capture_thread.start()
+            print("Captura automatica iniciada")
+        else:
+            print("Ya se está capturando la imagen")
+
+    def _captura_loop(self, intervalo):
+        while self.autocapture:
+            try:
+                print("Capturando imagen")
+                esp32cam_to_drive.take_photo_and_upload()
+            except Exception as e:
+                print(f"Error en la captura: {e}")
+            time.sleep(intervalo)
+
+    def ver_timelapse(self):
+        viewer = TimelapseViewer(
+            screen=pygame.display.get_surface(),
+            folder_id="1bJyt5g4C0I054B8viTvOzSLac1ksq0Wc",
+        )
+        viewer.descargar_imagenes()
+        viewer.mostrar_timelapse(duracion=0.5)
