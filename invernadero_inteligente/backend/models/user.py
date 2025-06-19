@@ -11,7 +11,8 @@ class User:
         self.rol = rol
         self.telefono = telefono
         self.ubicacion = ubicacion
-        self.numero_serie = numero_serie
+        self.numero_serie = ", ".join(numero_serie) if isinstance(numero_serie, list) else numero_serie
+
         self.password_hash = password
         self.fecha_registro = datetime.now().strftime("%Y-%m-%d %H:%M:%S")  # Nueva línea
 
