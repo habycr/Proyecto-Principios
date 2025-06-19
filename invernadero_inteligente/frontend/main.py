@@ -24,7 +24,7 @@ ESTADOS = {
 }
 
 
-estado_actual = "LOGIN"
+estado_actual = "REGISTRO"
 usuario_actual = None
 
 
