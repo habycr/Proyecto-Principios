@@ -50,8 +50,10 @@ class RegistroUsuario:
         if evento.type == pygame.MOUSEBUTTONDOWN:
             if self.boton_registrar.rect.collidepoint(evento.pos):
                 self.registrar_usuario()
+
             elif self.boton_volver.rect.collidepoint(evento.pos):
                 self.limpiar_formulario()
+                return "volver"
 
     def limpiar_formulario(self):
         """Reinicia todos los campos del formulario"""

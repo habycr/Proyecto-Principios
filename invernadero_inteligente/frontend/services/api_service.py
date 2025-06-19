@@ -14,21 +14,20 @@ from ..config import config
 
 class APIService:
     @staticmethod
+    @staticmethod
     def _make_request(endpoint, data=None, method='POST', params=None):
         try:
+            url = f"{config.BACKEND_URL}/api{endpoint}"
+            headers = {'Content-Type': 'application/json'}
+
             if method == 'POST':
-                response = requests.post(
-                    f"{config.BACKEND_URL}/api{endpoint}",
-                    json=data,
-                    headers={'Content-Type': 'application/json'},
-                    timeout=config.API_TIMEOUT
-                )
-            else:  # GET
-                response = requests.get(
-                    f"{config.BACKEND_URL}/api{endpoint}",
-                    params=params,
-                    timeout=config.API_TIMEOUT
-                )
+                response = requests.post(url, json=data, headers=headers, timeout=config.API_TIMEOUT)
+            elif method == 'GET':
+                response = requests.get(url, params=params, timeout=config.API_TIMEOUT)
+            elif method == 'PUT':
+                response = requests.put(url, json=data, headers=headers, timeout=config.API_TIMEOUT)
+            else:
+                return {"status": "error", "message": f"Método HTTP no soportado: {method}"}
 
             if not response.ok:
                 return {
@@ -119,3 +118,10 @@ class APIService:
             "serial": serial
         }, method='POST')
 
+    @staticmethod
+    def actualizar_perfil(email, datos_actualizados):
+        return APIService._make_request(f"/usuario/{email}", datos_actualizados, method='PUT')
+    @staticmethod
+    def obtener_usuario(email):
+        """Obtiene la información de un usuario por su email"""
+        return APIService._make_request(f"/usuario/{email}", method='GET')

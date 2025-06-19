@@ -120,10 +120,14 @@ class AuthService:
                 "user": {
                     "email": user['email'],
                     "nombre": user['nombre'],
-                    "rol": user['rol']
+                    "rol": user['rol'],
+                    "numero_serie": user.get('numero_serie', 'N/A'),
+                    "telefono": user.get('telefono', ''),
+                    "ubicacion": user.get('ubicacion', '')
                 },
                 "message": "Inicio de sesión exitoso"
             }
+
 
         except Exception as e:
             log_error(f"Error en login: {str(e)}", "auth_service.login_user")

@@ -13,7 +13,7 @@ from invernadero_inteligente.frontend.components.usuarios.registro.elementos.tar
 from invernadero_inteligente.frontend.services.api_service import APIService
 from invernadero_inteligente.firmware import esp32cam_to_drive
 from invernadero_inteligente.firmware.timelapse_viewer import TimelapseViewer
-
+from invernadero_inteligente.frontend.components.dashboard.editar_perfil.editar_perfil import EditarPerfil
 
 class Dashboard:
     def __init__(self, ancho_ventana, alto_ventana, usuario):
@@ -23,6 +23,7 @@ class Dashboard:
         self.fuente_titulo = pygame.font.Font(None, 36)
         self.fuente_normal = pygame.font.Font(None, 28)
         self.fuente_pequena = pygame.font.Font(None, 24)
+
         # URL base del ESP32 - AJUSTA ESTO CON TU IP REAL
         self.esp32_base_url = "http://192.168.0.26"
         # Cargar la imagen
@@ -47,7 +48,8 @@ class Dashboard:
         self.tiempo_segundos = 0
         self.texto_entrada = ""
         self.entrada_activa = "horas"
-
+        self.editando_perfil = False
+        self.editar_perfil = None
         self.crear_componentes()
         self.autocapture = False
         self.capture_thread = None
@@ -190,16 +192,54 @@ class Dashboard:
             texto="Cancelar",
             color=(200, 100, 100)
         )
+        # Botón de editar perfil
+        self.boton_editar_perfil = Boton(
+            x=self.ancho - 170,
+            y=140,
+            ancho=150,
+            alto=40,
+            texto="Editar perfil",
+            color=config.COLOR_BUTTON_SECONDARY
+        )
+
+        # Botón para soporte técnico
+        self.boton_soporte = Boton(
+            x=self.ancho - 170,
+            y=200,
+            ancho=150,
+            alto=40,
+            texto="Soporte técnico",
+            color=config.COLOR_BUTTON_SECONDARY
+        )
 
     def manejar_evento(self, evento):
+        if self.editando_perfil:
+            resultado = self.editar_perfil.manejar_evento(evento)
+            if resultado == "volver_dashboard":
+                self.editando_perfil = False
+                return "redraw"
+            elif resultado == "perfil_actualizado":
+                self.editando_perfil = False
+                # Actualizar los datos del usuario con los nuevos valores
+                self.usuario = self.editar_perfil.obtener_datos_actualizados()
+                return "perfil_actualizado"
+            return None
+
+
         if evento.type == pygame.MOUSEBUTTONDOWN:
             if self.boton_cerrar.rect.collidepoint(evento.pos):
                 return "logout"
             elif self.boton_configuracion.rect.collidepoint(evento.pos):
                 return "configuracion"
+            elif self.boton_soporte.rect.collidepoint(evento.pos):
+                return "soporte"
+
             elif self.boton_principal.rect.collidepoint(evento.pos):
                 print("Botón principal presionado")
-
+            elif self.boton_editar_perfil.rect.collidepoint(evento.pos):
+                self.editando_perfil = True
+                self.editar_perfil = EditarPerfil(self.ancho, self.alto, self.usuario)
+                return "redraw"
             elif self.boton_capturar.rect.collidepoint(evento.pos):
                 print("Capturando y subiendo imagen")
 
@@ -282,6 +322,8 @@ class Dashboard:
                     if rect.collidepoint(evento.pos):
                         self.entrada_activa = campo
                         self.texto_entrada = str(getattr(self, f"tiempo_{campo}"))
+
+
 
             # Manejar clic en la X de la ventana de alerta
             if self.mostrar_alerta:
@@ -414,11 +456,16 @@ class Dashboard:
         superficie.blit(titulo, (20, 20))
 
         # Información del usuario
+        # En dashboard.py, método dibujar()
+        dispositivos = ", ".join(self.usuario.get('numero_serie', [])) if isinstance(self.usuario.get('numero_serie'),
+                                                                                     list) else self.usuario.get(
+            'numero_serie', 'N/A')
         info_usuario = self.fuente_normal.render(
-            f"Rol: {self.usuario['rol']} | Dispositivo: {self.usuario.get('numero_serie', 'N/A')}",
+            f"Rol: {self.usuario['rol']} | Dispositivo: {dispositivos}",
             True,
             (100, 100, 100)
         )
+
         superficie.blit(info_usuario, (20, 70))
 
         # Dibujar botones
@@ -436,6 +483,8 @@ class Dashboard:
         self.boton_principal.dibujar(superficie)
         self.boton_abono.dibujar(superficie)
         self.boton_config_tiempo.dibujar(superficie)
+        self.boton_editar_perfil.dibujar(superficie)
+        self.boton_soporte.dibujar(superficie)
 
         # Mostrar tiempo restante si el temporizador está activo
         if self.temporizador_activo:
@@ -459,6 +508,10 @@ class Dashboard:
             # Posición segura para el texto
             pos_y = min(510, self.alto - 30)
             superficie.blit(texto_tiempo, (320, pos_y))
+        if self.editando_perfil:
+            self.editar_perfil.dibujar(superficie)
+            return
+
 
         # Mostrar cuadro de configuración de tiempo
         if self.configurando_tiempo:
@@ -528,6 +581,7 @@ class Dashboard:
             # Posición de la imagen (esquina superior izquierda - 0,0)
             pos_x = 480
             pos_y = 20
+
 
             superficie.blit(imagen_pequena, (pos_x, pos_y))
     def iniciar_captura(self, intervalo):
