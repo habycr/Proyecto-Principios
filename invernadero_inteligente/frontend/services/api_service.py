@@ -125,3 +125,7 @@ class APIService:
     def obtener_usuario(email):
         """Obtiene la información de un usuario por su email"""
         return APIService._make_request(f"/usuario/{email}", method='GET')
+
+    @staticmethod
+    def crear_ticket(data):
+        return APIService._make_request('/ticket', data, method='POST')

@@ -66,12 +66,21 @@ class CreacionTicket:
                 return "volver_dashboard"
 
             # Botón enviar
-            if self.boton_enviar.rect.collidepoint(pos):
-                if self.validar():
+            if self.validar():
+                data = {
+                    "email": self.usuario['email'],
+                    "dispositivo": self.dispositivo_seleccionado,
+                    "asunto": self.asunto,
+                    "descripcion": self.descripcion
+                }
+                response = APIService.crear_ticket(data)
+                if response.get("status") == "success":
                     self.mensaje_envio = "Ticket enviado correctamente"
                     self.mostrar_mensaje = True
                     self.limpiar_formulario()
-                return
+                else:
+                    self.mensaje_envio = f"Error: {response.get('message', 'Error desconocido')}"
+                    self.mostrar_mensaje = True
 
             # Botón refrescar
             if self.boton_refrescar.rect.collidepoint(pos):
