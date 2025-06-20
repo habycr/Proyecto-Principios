@@ -15,12 +15,14 @@ class Login:
         self.mensaje_error = None
         self.usuario_autenticado = None
 
+
     def crear_componentes(self):
         x_pos = self.ancho // 2 - 150
         self.campo_email = InputBox(x_pos, 200, 300, 40, "Correo electrónico")
         self.campo_password = PasswordBox(x_pos, 270, 300, 40, "Contraseña")
         self.boton_volver = Boton(x_pos - 50, 350, 120, 40, "Volver", config.COLOR_BUTTON_SECONDARY)
         self.boton_login = Boton(x_pos + 180, 350, 170, 40, "Iniciar sesión", config.COLOR_BUTTON)
+
 
     def manejar_evento(self, evento):
         # Pasar eventos a los campos
@@ -38,6 +40,8 @@ class Login:
         self.campo_email.texto = ""
         self.campo_password.texto = ""
         self.mensaje_error = None
+        self.mensaje_exito = None
+        self.usuario_autenticado = None
 
     def validar_formulario(self):
         # Validaciones básicas
@@ -87,6 +91,7 @@ class Login:
         self.boton_volver.dibujar(superficie)
         self.boton_login.dibujar(superficie)
 
+
         if self.mensaje_error:
             texto_error = self.fuente_chica.render(self.mensaje_error, True, config.COLOR_ERROR)
             superficie.blit(texto_error, (self.ancho // 2 - texto_error.get_width() // 2, 420))
@@ -94,4 +99,7 @@ class Login:
         if hasattr(self, 'mensaje_exito') and self.mensaje_exito:
             texto_exito = self.fuente_chica.render(self.mensaje_exito, True, config.COLOR_SUCCESS)
             superficie.blit(texto_exito, (self.ancho // 2 - texto_exito.get_width() // 2, 420))
+
+
+
 

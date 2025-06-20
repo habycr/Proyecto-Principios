@@ -11,7 +11,8 @@ class User:
         self.rol = rol
         self.telefono = telefono
         self.ubicacion = ubicacion
-        self.numero_serie = numero_serie
+        self.numero_serie = ", ".join(numero_serie) if isinstance(numero_serie, list) else numero_serie
+
         self.password_hash = password
         self.fecha_registro = datetime.now().strftime("%Y-%m-%d %H:%M:%S")  # Nueva línea
 
@@ -84,8 +85,13 @@ class User:
                         'email': user.get('Email', ''),
                         'nombre': user.get('Nombre', ''),
                         'rol': user.get('Rol', ''),
-                        'password': user.get('Password', ''),  # Asegúrate que coincide con Google Sheets
-                        'fecha_registro': user.get('Fecha Registro', '')  # Nuevo campo
+                        'password': user.get('Password', ''),
+                        'fecha_registro': user.get('Fecha Registro', ''),
+                        'telefono': user.get('Teléfono', ''),
+                        'ubicacion': user.get('Ubicación', ''),
+                        'numero_serie': [s.strip() for s in user.get('Dispositivo', '').split(',') if s.strip()]
+
+
                     }
             return None
         except Exception as e:

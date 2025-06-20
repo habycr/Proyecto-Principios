@@ -2,7 +2,7 @@
 from flask import Flask
 from flask_cors import CORS
 from invernadero_inteligente.backend.routes.user_routes import user_bp
-
+from invernadero_inteligente.backend.routes.ticket_routes import ticket_bp
 from invernadero_inteligente.backend.config.settings import SPREADSHEET_ID, DEBUG_MODE, SERVER_HOST, SERVER_PORT
 from routes.data_router import data_bp
 # Crear aplicación Flask
@@ -14,7 +14,7 @@ CORS(app, origins=["*"])  # En producción, especifica dominios específicos
 # Registrar blueprints
 app.register_blueprint(user_bp, url_prefix='/api')
 app.register_blueprint(data_bp, url_prefix='/api/data')
-
+app.register_blueprint(ticket_bp, url_prefix='/api')
 # Ruta raíz para verificar que el servidor funciona
 @app.route('/')
 def home():
