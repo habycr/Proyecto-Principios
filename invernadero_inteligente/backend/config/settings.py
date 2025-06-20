@@ -23,3 +23,7 @@ CORS_ORIGINS = ["http://localhost:*", "http://127.0.0.1:*"]
 # 6. Configuración de validación
 MIN_PASSWORD_LENGTH = 8
 MIN_SERIAL_LENGTH = 5
+
+# 7. Gmail
+GMAIL_CREDENTIALS_PATH = CREDENTIALS_DIR / "gmail.json"
+GMAIL_TOKEN_PATH = CREDENTIALS_DIR / "gmail_token.json"

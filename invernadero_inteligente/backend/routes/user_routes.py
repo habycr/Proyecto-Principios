@@ -99,3 +99,55 @@ def agregar_dispositivo():
         return jsonify({"status": "success", "message": "Dispositivo agregado correctamente"})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
+
+@user_bp.route('/usuario/<email>', methods=['PUT'])
+def actualizar_usuario(email):
+    try:
+        data = request.get_json()
+
+        if not data:
+            return jsonify({"status": "error", "message": "Datos no proporcionados"}), 400
+
+        registro_actual = User.find_by_email(email)
+        if not registro_actual:
+            return jsonify({"status": "error", "message": "Usuario no encontrado"}), 404
+
+        db = GoogleSheetsDB()
+        worksheet = db.get_worksheet("Usuarios")
+        all_values = worksheet.get_all_values()
+        headers = all_values[0]
+
+        for idx, row in enumerate(all_values[1:], start=2):
+            if row[1].strip().lower() == email.strip().lower():
+                nuevo_nombre = data.get("nombre", row[0])
+                nuevo_email = data.get("email", row[1])
+                nueva_ubicacion = data.get("ubicacion", row[5])
+
+                worksheet.update_cell(idx, headers.index("Nombre") + 1, nuevo_nombre)
+                worksheet.update_cell(idx, headers.index("Email") + 1, nuevo_email)
+                worksheet.update_cell(idx, headers.index("Ubicación") + 1, nueva_ubicacion)
+
+                return jsonify({
+                    "status": "success",
+                    "message": "Perfil actualizado correctamente"
+                })
+
+        return jsonify({"status": "error", "message": "Usuario no encontrado"}), 404
+
+    except Exception as e:
+        return jsonify({"status": "error", "message": f"Error al actualizar perfil: {str(e)}"}), 500
+
+@user_bp.route('/usuario/<email>', methods=['GET'])
+def obtener_usuario(email):
+    try:
+        usuario = User.find_by_email(email)
+        if not usuario:
+            return jsonify({"status": "error", "message": "Usuario no encontrado"}), 404
+
+        return jsonify({
+            "status": "success",
+            "usuario": usuario
+        })
+    except Exception as e:
+        return jsonify({"status": "error", "message": f"Error al obtener usuario: {str(e)}"}), 500
+
