@@ -15,50 +15,63 @@ from invernadero_inteligente.backend.utils.logger import log, log_user_action, l
 
 class AuthService:
     @staticmethod
+    @staticmethod
     def register_user(data):
         try:
-            # Validar campos requeridos
+            # 1. Validaciones básicas
             required_fields = ['nombre', 'email', 'password', 'rol', 'numero_serie']
             missing_fields = validate_required_fields(data, required_fields)
             if missing_fields:
                 raise ValueError(f"Faltan campos obligatorios: {', '.join(missing_fields)}")
 
-            # Validaciones específicas
             if not validate_email(data['email']):
                 raise ValueError("Formato de email inválido")
 
+            # 2. Verificar unicidad del email
             if User.exists(data['email']):
                 raise ValueError("El email ya está registrado")
 
-            if not validate_serial_number(data['numero_serie']):
-                raise ValueError("Número de serie inválido o no disponible")
+            serial_numbers = [s.strip() for s in data['numero_serie'].split(',')]
+            for serial in serial_numbers:
+                if not Device.exists(serial):
+                    raise ValueError(f"El número de serie {serial} no existe en el sistema")
+                if not Device.is_available(serial):
+                    raise ValueError(f"El dispositivo {serial} ya está asignado a otro usuario")
+                if User.is_device_assigned(serial):
+                    raise ValueError(f"El dispositivo {serial} ya está registrado por otro usuario")
 
-            print(f"DEBUG: número de serie recibido: {data['numero_serie']}")
-            if not Device.exists(data['numero_serie']):
-                raise ValueError(f"El número de serie {data['numero_serie']} no está registrado en el sistema")
-
-            if not Device.is_available(data['numero_serie']):
-                raise ValueError(f"El dispositivo {data['numero_serie']} ya está asignado a otro usuario")
-            print(f"Contraseña original: {data['password']}")
+            # 4. Hash de contraseña
             hashed_password = User.create_password_hash(data['password'])
-            print(f"Contraseña hasheada: {hashed_password}")
-            # Crear y guardar usuario
-            user = User(
-                nombre=data['nombre'],
-                email=data['email'],
-                password=hashed_password,  # Guardar el hash, no la contraseña en texto plano
-                rol=data['rol'],
-                numero_serie=data['numero_serie'],
-                telefono=data.get('telefono', ''),
-                ubicacion=data.get('ubicacion', '')
-            )
-            user.save()
 
-            Device.associate_to_user(data['numero_serie'], data['email'])
+            # 5. PRIMERO asociar dispositivo (operación más crítica)
+            try:
+                for serial in serial_numbers:
+                    Device.associate_to_user(serial, data['email'])
+            except Exception as e:
+                raise ValueError(f"No se pudo asignar el/los dispositivo(s): {str(e)}")
 
-            log_user_action(data['email'], f"Registro exitoso - Dispositivo: {data['numero_serie']}")
+            # 6. SOLO SI lo anterior funcionó, crear el usuario
+            try:
+                user = User(
+                    nombre=data['nombre'],
+                    email=data['email'],
+                    password=hashed_password,
+                    rol=data['rol'],
+                    numero_serie=serial_numbers,
+                    telefono=data.get('telefono', ''),
+                    ubicacion=data.get('ubicacion', '')
+                )
+                user.save()
+            except Exception as e:
+                # Revertir la asociación del dispositivo si falla crear usuario
+                try:
+                    Device.associate_to_user(serial_numbers, '')  # Desasociar
+                except:
+                    pass  # Si falla el rollback, al menos registramos el error
+                raise ValueError(f"Error al guardar usuario: {str(e)}")
 
-            # Devuelve un diccionario serializable
+            # 7. Log y retorno
+            log_user_action(data['email'], f"Registro exitoso - Dispositivo: {serial_numbers}")
             return {
                 "nombre": user.nombre,
                 "email": user.email,
@@ -72,8 +85,8 @@ class AuthService:
             log_error(e, "register_user")
             raise
         except Exception as e:
-            log_error(f"Error en registro: {str(e)}", "auth_service.register_user")
-            raise
+            log_error(f"Error inesperado en registro: {str(e)}", "auth_service.register_user")
+            raise ValueError("Error interno durante el registro")
 
 
     @staticmethod
@@ -107,10 +120,14 @@ class AuthService:
                 "user": {
                     "email": user['email'],
                     "nombre": user['nombre'],
-                    "rol": user['rol']
+                    "rol": user['rol'],
+                    "numero_serie": user.get('numero_serie', 'N/A'),
+                    "telefono": user.get('telefono', ''),
+                    "ubicacion": user.get('ubicacion', '')
                 },
                 "message": "Inicio de sesión exitoso"
             }
+
 
         except Exception as e:
             log_error(f"Error en login: {str(e)}", "auth_service.login_user")
