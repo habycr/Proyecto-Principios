@@ -50,8 +50,10 @@ class RegistroUsuario:
         if evento.type == pygame.MOUSEBUTTONDOWN:
             if self.boton_registrar.rect.collidepoint(evento.pos):
                 self.registrar_usuario()
+
             elif self.boton_volver.rect.collidepoint(evento.pos):
                 self.limpiar_formulario()
+                return "volver"
 
     def limpiar_formulario(self):
         """Reinicia todos los campos del formulario"""
@@ -111,13 +113,16 @@ class RegistroUsuario:
             "ubicacion": self.campo_ubicacion.texto
         }
 
-        respuesta = APIService.registrar_usuario(datos_usuario)
+        try:
+            respuesta = APIService.registrar_usuario(datos_usuario)
 
-        if respuesta.get("status") == "success":
-            self.mensaje_exito = respuesta["message"]
-            self.limpiar_formulario()
-        else:
-            self.mensaje_error = respuesta.get("message", "Error desconocido al registrar")
+            if respuesta.get("status") == "success":
+                self.mensaje_exito = "¡Registro exitoso!"
+                self.limpiar_formulario()
+            else:
+                self.mensaje_error = respuesta.get("message", "Error desconocido al registrar")
+        except Exception as e:
+            self.mensaje_error = str(e)
 
     def dibujar(self, superficie):
         # Título

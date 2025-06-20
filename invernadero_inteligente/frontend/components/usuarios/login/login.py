@@ -1,9 +1,12 @@
 import pygame
+import os
 from invernadero_inteligente.frontend.config import config
 from components.usuarios.registro.elementos.input_box import InputBox
 from components.usuarios.registro.elementos.boton import Boton
 from components.usuarios.registro.elementos.password_box import PasswordBox
 from invernadero_inteligente.frontend.services.api_service import APIService
+import requests
+from io import BytesIO
 
 class Login:
     def __init__(self, ancho_ventana, alto_ventana):
@@ -11,9 +14,25 @@ class Login:
         self.alto = alto_ventana
         self.fuente = pygame.font.Font(None, 32)
         self.fuente_chica = pygame.font.Font(None, 24)
+
+        # Cargar la imagen
+        self.imagen = self.imagen = Login.cargar_imagen_desde_github()
+
         self.crear_componentes()
         self.mensaje_error = None
         self.usuario_autenticado = None
+
+    @staticmethod
+    def cargar_imagen_desde_github():
+        url = "https://raw.githubusercontent.com/habycr/Proyecto-Principios/6b91ab4a49c35c8810bff80b7b1b537ab67ffff6/invernadero_inteligente/frontend/components/usuarios/registro/elementos/logo/logo.png"
+        try:
+            response = requests.get(url)
+            response.raise_for_status()  # Lanza error si la descarga falla
+            imagen = pygame.image.load(BytesIO(response.content))
+            return imagen
+        except Exception as e:
+            print(f"Error al cargar imagen desde GitHub: {e}")
+            return None
 
     def crear_componentes(self):
         x_pos = self.ancho // 2 - 150
@@ -23,7 +42,6 @@ class Login:
         self.boton_login = Boton(x_pos + 180, 350, 170, 40, "Iniciar sesión", config.COLOR_BUTTON)
 
     def manejar_evento(self, evento):
-        # Pasar eventos a los campos
         self.campo_email.manejar_evento(evento)
         self.campo_password.manejar_evento(evento)
 
@@ -40,11 +58,9 @@ class Login:
         self.mensaje_error = None
 
     def validar_formulario(self):
-        # Validaciones básicas
         if not self.campo_email.texto or not self.campo_password.texto:
             return "Complete todos los campos"
 
-        # Validación básica de email
         if "@" not in self.campo_email.texto or "." not in self.campo_email.texto.split("@")[-1]:
             return "Ingrese un email válido"
 
@@ -68,20 +84,25 @@ class Login:
             self.usuario_autenticado = respuesta.get("user")
             self.mensaje_exito = "Inicio de sesión exitoso"
             self.mensaje_error = None
-            # Aquí podrías redirigir al dashboard
         else:
             self.mensaje_error = respuesta.get("message", "Error desconocido al iniciar sesión")
             self.usuario_autenticado = None
 
     def dibujar(self, superficie):
+        # Fondo blanco
+        superficie.fill((255, 255, 255))
+
+        # Título
         titulo = self.fuente.render("Inicio de Sesión", True, (0, 0, 0))
         superficie.blit(titulo, (self.ancho // 2 - titulo.get_width() // 2, 100))
 
+        # Componentes del formulario
         self.campo_email.dibujar(superficie)
         self.campo_password.dibujar(superficie)
         self.boton_volver.dibujar(superficie)
         self.boton_login.dibujar(superficie)
 
+        # Mensajes de error/éxito
         if self.mensaje_error:
             texto_error = self.fuente_chica.render(self.mensaje_error, True, config.COLOR_ERROR)
             superficie.blit(texto_error, (self.ancho // 2 - texto_error.get_width() // 2, 420))
@@ -90,3 +111,9 @@ class Login:
             texto_exito = self.fuente_chica.render(self.mensaje_exito, True, config.COLOR_SUCCESS)
             superficie.blit(texto_exito, (self.ancho // 2 - texto_exito.get_width() // 2, 420))
 
+        # Dibujar imagen en la parte inferior
+        if self.imagen:
+            # Posición de la imagen (centrada horizontalmente, 50px desde el fondo)
+            pos_x = self.ancho // 2 - self.imagen.get_width() // 2
+            pos_y = self.alto - self.imagen.get_height() - 50
+            superficie.blit(self.imagen, (pos_x, pos_y))

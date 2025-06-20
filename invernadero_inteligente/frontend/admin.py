@@ -5,7 +5,7 @@ from components.dashboard.dashboard import Dashboard
 from invernadero_inteligente.frontend.config import config
 from components.usuarios.login.login_admin import Login
 from components.usuarios.registro.registro_usuario import RegistroUsuario
-
+from components.dashboard.dashboard_admin import DashboardAdmin
 
 # Configuración inicial
 pygame.init()
@@ -38,16 +38,22 @@ while ejecutando:
         if estado_actual in ESTADOS and ESTADOS[estado_actual]:
             resultado = ESTADOS[estado_actual].manejar_evento(evento)
 
-            # Manejar transiciones de estado
+            # --- Transiciones ---
             if estado_actual == "LOGIN" and ESTADOS["LOGIN"].usuario_autenticado:
                 usuario_actual = ESTADOS["LOGIN"].usuario_autenticado
-                ESTADOS["DASHBOARD"] = Dashboard(*config.WINDOW_SIZE, usuario_actual)
+                if usuario_actual.get("rol", "").lower() == "administrador":
+                    ESTADOS["DASHBOARD"] = DashboardAdmin(*config.WINDOW_SIZE, usuario_actual)
+                else:
+                    ESTADOS["DASHBOARD"] = Dashboard(*config.WINDOW_SIZE, usuario_actual)
                 estado_actual = "DASHBOARD"
 
             elif estado_actual == "DASHBOARD" and resultado == "logout":
                 usuario_actual = None
                 ESTADOS["LOGIN"].limpiar_formulario()
+
+
                 estado_actual = "LOGIN"
+
 
             elif estado_actual == "REGISTRO" and ESTADOS["REGISTRO"].mensaje_exito:
                 ESTADOS["LOGIN"].limpiar_formulario()
