@@ -2,6 +2,7 @@
 import pygame
 import sys
 from components.dashboard.dashboard import Dashboard
+from components.dashboard.graficas.menu_graficas import MenuGraficas
 from invernadero_inteligente.frontend.config import config
 from components.usuarios.login.login import Login
 from components.usuarios.registro.registro_usuario import RegistroUsuario
@@ -21,13 +22,12 @@ ESTADOS = {
     "REGISTRO": RegistroUsuario(*config.WINDOW_SIZE),
     "DASHBOARD": None,  # Se inicializará después del login
     "CONFIGURACION": None,
-    "CREACION_TICKET": None
-
-
+    "CREACION_TICKET": None,
+    "GRAFICOS": None
 }
 
 
-estado_actual = "REGISTRO"
+estado_actual = "LOGIN"
 usuario_actual = None
 
 
@@ -44,16 +44,18 @@ while ejecutando:
             resultado = ESTADOS[estado_actual].manejar_evento(evento)
 
             # Manejar transiciones de estado
-            if estado_actual == "LOGIN" and ESTADOS["LOGIN"].usuario_autenticado:
-                usuario_actual = ESTADOS["LOGIN"].usuario_autenticado
-                ESTADOS["DASHBOARD"] = Dashboard(*config.WINDOW_SIZE, usuario_actual)
-                estado_actual = "DASHBOARD"
-            elif resultado == "soporte":
-                ESTADOS["CREACION_TICKET"] = CreacionTicket(*config.WINDOW_SIZE, usuario_actual)
-                estado_actual = "CREACION_TICKET"
+            if estado_actual == "LOGIN":
+                if ESTADOS["LOGIN"].usuario_autenticado:
+                    usuario_actual = ESTADOS["LOGIN"].usuario_autenticado
+                    ESTADOS["DASHBOARD"] = Dashboard(*config.WINDOW_SIZE, usuario_actual)
+                    estado_actual = "DASHBOARD"
+                elif resultado == "registro":
+                    estado_actual = "REGISTRO"
 
-            elif estado_actual == "CREACION_TICKET" and resultado == "volver_dashboard":
-                estado_actual = "DASHBOARD"
+            elif estado_actual == "REGISTRO":
+                if ESTADOS["REGISTRO"].mensaje_exito:
+                    ESTADOS["LOGIN"].limpiar_formulario()
+                    estado_actual = "LOGIN"
 
             elif estado_actual == "DASHBOARD":
                 if resultado == "logout":
@@ -63,14 +65,24 @@ while ejecutando:
                 elif resultado == "configuracion":
                     ESTADOS["CONFIGURACION"] = Configuracion(*config.WINDOW_SIZE, usuario_actual)
                     estado_actual = "CONFIGURACION"
+                elif resultado == "soporte":
+                    ESTADOS["CREACION_TICKET"] = CreacionTicket(*config.WINDOW_SIZE, usuario_actual)
+                    estado_actual = "CREACION_TICKET"
+                elif resultado == "graficos":
+                    ESTADOS["GRAFICOS"] = MenuGraficas(*config.WINDOW_SIZE, usuario_actual)
+                    estado_actual = "GRAFICOS"
 
-            elif estado_actual == "REGISTRO" and ESTADOS["REGISTRO"].mensaje_exito:
-                ESTADOS["LOGIN"].limpiar_formulario()
-                estado_actual = "LOGIN"
+            elif estado_actual == "CONFIGURACION":
+                if resultado == "volver_dashboard":
+                    estado_actual = "DASHBOARD"
 
-            elif estado_actual == "CONFIGURACION" and resultado == "volver_dashboard":
-                estado_actual = "DASHBOARD"
+            elif estado_actual == "CREACION_TICKET":
+                if resultado == "volver_dashboard":
+                    estado_actual = "DASHBOARD"
 
+            elif estado_actual == "GRAFICOS":
+                if resultado == "volver_dashboard":
+                    estado_actual = "DASHBOARD"
 
 
     # Dibujar

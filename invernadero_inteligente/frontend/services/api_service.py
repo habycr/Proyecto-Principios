@@ -45,11 +45,13 @@ class APIService:
     def registrar_usuario(data):
         return APIService._make_request('/register', data)
 
+
     @staticmethod
     def iniciar_sesion(credenciales):
         return APIService._make_request('/login', credenciales)
 
-    # Métodos de dispositivos
+
+
     @staticmethod
     def obtener_dispositivo(numero_serie):
         return APIService._make_request(f'/dispositivo/{numero_serie}', method='GET')
@@ -129,3 +131,30 @@ class APIService:
     @staticmethod
     def crear_ticket(data):
         return APIService._make_request('/ticket', data, method='POST')
+
+    @staticmethod
+    def obtener_datos_hoja(dispositivo=None, tipo_dato=None, fecha_inicio=None, fecha_fin=None, limit=1000):
+        """Obtiene datos de la hoja 'Datos' de Google Sheets"""
+        params = {
+            'limit': limit
+        }
+
+        if dispositivo:
+            params['dispositivo'] = dispositivo
+        if tipo_dato:
+            params['tipo_dato'] = tipo_dato
+        if fecha_inicio:
+            params['fecha_inicio'] = fecha_inicio
+        if fecha_fin:
+            params['fecha_fin'] = fecha_fin
+
+        return APIService._make_request('/data/sheet', method='GET', params=params)
+
+    @staticmethod
+    def obtener_datos_raw(dispositivo, tipo_dato, limit=100):
+        params = {
+            'dispositivo': dispositivo,
+            'tipo_dato': tipo_dato,
+            'limit': limit
+        }
+        return APIService._make_request('/data/raw', method='GET', params=params)
