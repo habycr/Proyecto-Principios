@@ -26,7 +26,7 @@ class Dashboard:
         self.fuente_pequena = pygame.font.Font(None, 24)
 
         # URL base del ESP32 - AJUSTA ESTO CON TU IP REAL
-        self.esp32_base_url = "http://192.168.0.26"
+        self.esp32_base_url = "http://172.19.14.137"
         # Cargar la imagen
         self.imagen = Dashboard.cargar_imagen_desde_github()
         # Estados de los dispositivos (False = apagado, True = encendido)
@@ -56,6 +56,7 @@ class Dashboard:
         self.crear_componentes()
         self.autocapture = False
         self.capture_thread = None
+        self.techoAbierto = True
 
     def enviar_comando(self, dispositivo, accion):
         try:
@@ -215,6 +216,9 @@ class Dashboard:
                 # Actualizar los datos del usuario con los nuevos valores
                 self.usuario = self.editar_perfil.obtener_datos_actualizados()
                 return "perfil_actualizado"
+
+
+
             return None
 
         if evento.type == pygame.MOUSEBUTTONDOWN:
@@ -328,6 +332,7 @@ class Dashboard:
                             boton.color = (255, 0, 0)
                             if dispositivo == "techo":
                                 boton.texto = "Cerrar Techo"
+                                techoAbierto=False
                             elif dispositivo == "bomba_agua":
                                 boton.texto = "Desactivar Bomba Agua"
                             else:
@@ -336,71 +341,74 @@ class Dashboard:
                             boton.color = config.COLOR_BUTTON
                             if dispositivo == "techo":
                                 boton.texto = "Abrir Techo"
+                                techoAbierto=True
                             elif dispositivo == "bomba_agua":
                                 boton.texto = "Activar Bomba Agua"
                             else:
                                 boton.texto = boton.texto.replace("Desactivar", "Activar")
-                    return "redraw"
 
-        # Manejar entrada de texto para configurar el tiempo
-        elif evento.type == pygame.KEYDOWN and self.configurando_tiempo:
-            if evento.key == pygame.K_RETURN:
-                self.tiempo_duracion_temporizador = (self.tiempo_horas * 3600 +
-                                                     self.tiempo_minutos * 60 +
-                                                     self.tiempo_segundos)
-                if self.tiempo_duracion_temporizador > 0:
-                    self.temporizador_activo = True
-                    self.tiempo_inicio_temporizador = time.time()
-                    self.boton_abono.texto = "Cancelar abono"
-                    self.boton_abono.color = (200, 100, 100)
-                self.configurando_tiempo = False
-                return "redraw"
-            elif evento.key == pygame.K_ESCAPE:
-                self.configurando_tiempo = False
-                return "redraw"
-            elif evento.key == pygame.K_BACKSPACE:
-                self.texto_entrada = self.texto_entrada[:-1]
-            elif evento.unicode.isdigit():
-                self.texto_entrada += evento.unicode
+                    return None
 
-            # Actualizar el valor correspondiente
-            if self.entrada_activa and self.texto_entrada:
-                try:
-                    valor = int(self.texto_entrada)
-                    if self.entrada_activa == "horas" and 0 <= valor <= 100:
-                        self.tiempo_horas = valor
-                    elif self.entrada_activa == "minutos" and 0 <= valor < 60:
-                        self.tiempo_minutos = valor
-                    elif self.entrada_activa == "segundos" and 0 <= valor < 60:
-                        self.tiempo_segundos = valor
-                except ValueError:
-                    pass
-            return "redraw"
-
-        return None
-
-    def actualizar(self):
-        # Verificar si el temporizador ha terminado
-        if self.temporizador_activo:
-            tiempo_transcurrido = time.time() - self.tiempo_inicio_temporizador
-            tiempo_restante = self.tiempo_duracion_temporizador - tiempo_transcurrido
-
-            if tiempo_restante <= 0:
-                # El temporizador ha terminado
+            # Manejar clic en el botón de abono (solo para cancelar)
+            if self.boton_abono.rect.collidepoint(evento.pos) and self.temporizador_activo:
                 self.temporizador_activo = False
-                self.mostrar_alerta = True
-                self.alerta_tiempo = time.time()
-                self.boton_abono.texto = "Configurar abono"
                 self.boton_abono.color = (100, 200, 100)
-                print("¡Temporizador de abono terminado! Mostrando alerta.")
-                return "redraw"
+                self.boton_abono.texto = "Próximo aviso de abono"
 
-        # Cerrar alerta automáticamente después de 10 segundos
-        if self.mostrar_alerta and time.time() - self.alerta_tiempo > 10:
-            self.mostrar_alerta = False
-            return "redraw"
+            # Manejar clic en el botón de configurar tiempo
+            elif self.boton_config_tiempo.rect.collidepoint(evento.pos) and not self.configurando_tiempo:
+                self.configurando_tiempo = True
+                self.tiempo_horas = 0
+                self.tiempo_minutos = 0
+                self.tiempo_segundos = 0
+                self.texto_entrada = ""
+                self.entrada_activa = "horas"
 
-        return None
+            # Manejar clics en el diálogo de configuración de tiempo
+            if self.configurando_tiempo:
+                # Botón Aceptar
+                if self.boton_aceptar_tiempo.rect.collidepoint(evento.pos):
+                    self.tiempo_duracion_temporizador = (self.tiempo_horas * 3600 +
+                                                         self.tiempo_minutos * 60 +
+                                                         self.tiempo_segundos)
+                    if self.tiempo_duracion_temporizador > 0:
+                        self.temporizador_activo = True
+                        self.tiempo_inicio_temporizador = time.time()
+                        self.boton_abono.color = (200, 100, 100)
+                        self.boton_abono.texto = "Cancelar aviso de abono"
+                    self.configurando_tiempo = False
+
+                # Botón Cancelar
+                elif self.boton_cancelar_tiempo.rect.collidepoint(evento.pos):
+                    self.configurando_tiempo = False
+
+                # Cambiar campo de entrada activa
+                for i, campo in enumerate(["horas", "minutos", "segundos"]):
+                    rect = pygame.Rect(self.ancho // 2 - 50, self.alto // 2 - 50 + i * 40, 100, 30)
+                    if rect.collidepoint(evento.pos):
+                        self.entrada_activa = campo
+                        self.texto_entrada = str(getattr(self, f"tiempo_{campo}"))
+
+            # Manejar clic en la X de la ventana de alerta
+            if self.mostrar_alerta:
+                # Definir el área de la X (esquina superior derecha del popup)
+                popup_rect = pygame.Rect(
+                    (self.ancho - 400) // 2,
+                    (self.alto - 200) // 2,
+                    400,
+                    200
+                )
+                close_rect = pygame.Rect(
+                    popup_rect.right - 30,
+                    popup_rect.top + 10,
+                    20,
+                    20
+                )
+
+                if close_rect.collidepoint(evento.pos):
+                    self.mostrar_alerta = False
+
+                    return "redraw"
 
     def dibujar_popup_abono(self, superficie):
         """Dibuja el pop-up de abono centrado en la pantalla"""
@@ -488,6 +496,7 @@ class Dashboard:
         self.boton_configuracion.dibujar(superficie)
         self.boton_capturar.dibujar(superficie)
         self.boton_timelapse.dibujar(superficie)
+        self.boton_graficos.dibujar(superficie)
 
         # Dibujar botones de dispositivos
         for boton in self.botones_dispositivos.values():
@@ -604,10 +613,12 @@ class Dashboard:
             imagen_pequena = pygame.transform.scale(self.imagen, (140, 90))
             pos_x = 480
             pos_y = 20
+
             superficie.blit(imagen_pequena, (pos_x, pos_y))
 
     def iniciar_captura(self, intervalo):
         intervalo = 300
+
         if not self.autocapture:
             self.autocapture = True
             self.capture_thread = threading.Thread(target=self._captura_loop, args=(intervalo,), daemon=True)
