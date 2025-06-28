@@ -25,7 +25,7 @@ class Dashboard:
         self.fuente_pequena = pygame.font.Font(None, 24)
 
         # URL base del ESP32 - AJUSTA ESTO CON TU IP REAL
-        self.esp32_base_url = "http://192.168.0.26"
+        self.esp32_base_url = "http://172.19.14.137"
         # Cargar la imagen
         self.imagen = Dashboard.cargar_imagen_desde_github()
         # Estados de los dispositivos (False = apagado, True = encendido)

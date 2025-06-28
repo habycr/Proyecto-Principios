@@ -14,11 +14,14 @@ from ..config import config
 
 class APIService:
     @staticmethod
-    @staticmethod
     def _make_request(endpoint, data=None, method='POST', params=None):
         try:
             url = f"{config.BACKEND_URL}/api{endpoint}"
             headers = {'Content-Type': 'application/json'}
+
+            # Limpiar parámetros None para evitar enviar valores vacíos
+            if params:
+                params = {k: v for k, v in params.items() if v is not None and v != ''}
 
             if method == 'POST':
                 response = requests.post(url, json=data, headers=headers, timeout=config.API_TIMEOUT)
@@ -45,12 +48,9 @@ class APIService:
     def registrar_usuario(data):
         return APIService._make_request('/register', data)
 
-
     @staticmethod
     def iniciar_sesion(credenciales):
         return APIService._make_request('/login', credenciales)
-
-
 
     @staticmethod
     def obtener_dispositivo(numero_serie):
@@ -58,21 +58,35 @@ class APIService:
 
     # Métodos de datos
     @staticmethod
-    def obtener_datos_historicos(dispositivo, tipo_dato, limit=100):
+    def obtener_datos_historicos(dispositivo, tipo_dato, limit=100, fecha_inicio=None, fecha_fin=None):
         params = {
             'dispositivo': dispositivo,
             'tipo_dato': tipo_dato,
             'limit': limit
         }
+
+        # Agregar filtros de fecha si se proporcionan
+        if fecha_inicio:
+            params['fecha_inicio'] = fecha_inicio
+        if fecha_fin:
+            params['fecha_fin'] = fecha_fin
+
         return APIService._make_request('/data/historical', method='GET', params=params)
 
     @staticmethod
-    def obtener_grafica(dispositivo, tipo_dato, limit=100):
+    def obtener_grafica(dispositivo, tipo_dato, limit=100, fecha_inicio=None, fecha_fin=None):
         params = {
             'dispositivo': dispositivo,
             'tipo_dato': tipo_dato,
             'limit': limit
         }
+
+        # Agregar filtros de fecha si se proporcionan
+        if fecha_inicio:
+            params['fecha_inicio'] = fecha_inicio
+        if fecha_fin:
+            params['fecha_fin'] = fecha_fin
+
         response = APIService._make_request('/data/chart', method='GET', params=params)
 
         if response.get('status') != 'success':
@@ -123,6 +137,7 @@ class APIService:
     @staticmethod
     def actualizar_perfil(email, datos_actualizados):
         return APIService._make_request(f"/usuario/{email}", datos_actualizados, method='PUT')
+
     @staticmethod
     def obtener_usuario(email):
         """Obtiene la información de un usuario por su email"""
@@ -151,10 +166,44 @@ class APIService:
         return APIService._make_request('/data/sheet', method='GET', params=params)
 
     @staticmethod
-    def obtener_datos_raw(dispositivo, tipo_dato, limit=100):
+    def obtener_datos_raw(dispositivo, tipo_dato, limit=100, fecha_inicio=None, fecha_fin=None):
+        """
+        Obtiene datos crudos incluyendo EstadoTecho con filtro opcional de fechas
+
+        Args:
+            dispositivo: Número de serie del dispositivo
+            tipo_dato: Tipo de sensor
+            limit: Límite de registros
+            fecha_inicio: Fecha de inicio en formato "DD/MM/YYYY" (opcional)
+            fecha_fin: Fecha de fin en formato "DD/MM/YYYY" (opcional)
+        """
         params = {
             'dispositivo': dispositivo,
             'tipo_dato': tipo_dato,
-            'limit': limit
+            'limit': limit,
+            'incluir_estado_techo': 'true'
         }
-        return APIService._make_request('/data/raw', method='GET', params=params)
+
+        # Agregar filtros de fecha si se proporcionan
+        if fecha_inicio:
+            params['fecha_inicio'] = fecha_inicio
+            print(f"APIService: Enviando fecha_inicio = {fecha_inicio}")
+        if fecha_fin:
+            params['fecha_fin'] = fecha_fin
+            print(f"APIService: Enviando fecha_fin = {fecha_fin}")
+
+        print(f"APIService: Parámetros enviados = {params}")
+
+        response = APIService._make_request('/data/raw', method='GET', params=params)
+
+        print(f"APIService: Respuesta recibida = {response.get('status')}")
+        if response.get('status') == 'success':
+            print(f"APIService: Total registros recibidos = {len(response.get('data', []))}")
+
+        # Asegurarse de que los datos tengan EstadoTecho
+        if response.get("status") == "success" and "data" in response:
+            for item in response["data"]:
+                if "estado_techo" not in item:
+                    item["estado_techo"] = 0  # Valor por defecto si no está presente
+
+        return response
