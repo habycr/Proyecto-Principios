@@ -19,6 +19,8 @@ class Device:
             print(f"Error verificando dispositivo: {e}")
             return False
 
+
+
     @staticmethod
     def is_available(serial_number):
         """Verifica si el dispositivo está disponible (sin usuario asociado)"""
@@ -76,3 +78,4 @@ class Device:
             if str(dispositivo['Número de Serie']).strip() == str(serial_number).strip():
                 return dispositivo
         return None
+

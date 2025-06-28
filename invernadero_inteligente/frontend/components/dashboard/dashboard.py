@@ -15,6 +15,10 @@ from invernadero_inteligente.firmware import esp32cam_to_drive
 from invernadero_inteligente.firmware.timelapse_viewer import TimelapseViewer
 from invernadero_inteligente.frontend.components.dashboard.editar_perfil.editar_perfil import EditarPerfil
 
+# Importar los nuevos controladores
+from invernadero_inteligente.firmware.controladores.esp32_controller import ESP32Controller
+from invernadero_inteligente.firmware.controladores.device_manager import DeviceManager
+
 
 class Dashboard:
     def __init__(self, ancho_ventana, alto_ventana, usuario):
@@ -25,19 +29,14 @@ class Dashboard:
         self.fuente_normal = pygame.font.Font(None, 28)
         self.fuente_pequena = pygame.font.Font(None, 24)
 
-        # URL base del ESP32 - AJUSTA ESTO CON TU IP REAL
-        self.esp32_base_url = "http://192.168.0.26"
+        # Inicializar controladores ESP32
+        self.esp32_controller = ESP32Controller("http://172.19.14.137")
+        self.device_manager = DeviceManager(self.esp32_controller)
+
         # Cargar la imagen
         self.imagen = Dashboard.cargar_imagen_desde_github()
-        # Estados de los dispositivos (False = apagado, True = encendido)
-        self.estados_dispositivos = {
-            "bomba_agua": False,
-            "ventilador": False,
-            "uv": False,
-            "techo": False
-        }
 
-        # Variables para el temporizador de abono - CORREGIDAS
+        # Variables para el temporizador de abono
         self.temporizador_activo = False
         self.tiempo_inicio_temporizador = 0
         self.tiempo_duracion_temporizador = 0  # en segundos
@@ -49,27 +48,14 @@ class Dashboard:
         self.tiempo_segundos = 0
         self.texto_entrada = ""
         self.entrada_activa = "horas"
-
-        # Variables para el temporizador de abono
         self.editando_perfil = False
         self.editar_perfil = None
-        self.crear_componentes()
+
+        # Variables para captura automática
         self.autocapture = False
         self.capture_thread = None
 
-    def enviar_comando(self, dispositivo, accion):
-        try:
-            url = f"{self.esp32_base_url}/{dispositivo}/{accion}"
-            response = requests.get(url)
-            if response.status_code == 200:
-                print(f"Comando {accion} para {dispositivo} enviado correctamente")
-                return True
-            else:
-                print(f"Error al enviar comando: {response.status_code}")
-                return False
-        except Exception as e:
-            print(f"Error de conexión: {str(e)}")
-            return False
+        self.crear_componentes()
 
     def crear_componentes(self):
         # Botón de cerrar sesión
@@ -81,6 +67,7 @@ class Dashboard:
             texto="Cerrar sesión",
             color=config.COLOR_BUTTON_SECONDARY
         )
+
         # Botón de configuración
         self.boton_configuracion = Boton(
             x=self.ancho - 170,
@@ -90,6 +77,7 @@ class Dashboard:
             texto="Configuración",
             color=config.COLOR_BUTTON_SECONDARY
         )
+
         # Botón para capturar imagen
         self.boton_capturar = Boton(
             x=300,
@@ -109,53 +97,60 @@ class Dashboard:
             texto="Ver Timelapse",
             color=config.COLOR_BUTTON_SECONDARY
         )
-        # Botones de control de dispositivos
-        self.botones_dispositivos = {
-            "bomba_agua": Boton(
-                x=50,
-                y=150,
-                ancho=260,
-                alto=50,
-                texto="Activar Bomba de Agua",
-                color=config.COLOR_BUTTON
-            ),
-            "ventilador": Boton(
-                x=50,
-                y=220,
-                ancho=200,
-                alto=50,
-                texto="Activar Ventilador",
-                color=config.COLOR_BUTTON
-            ),
-            "uv": Boton(
-                x=50,
-                y=290,
-                ancho=260,
-                alto=50,
-                texto="Activar Luz Ultravioleta",
-                color=config.COLOR_BUTTON
-            ),
-            "techo": Boton(
-                x=50,
-                y=360,
-                ancho=200,
-                alto=50,
-                texto="Abrir Techo",
-                color=config.COLOR_BUTTON
-            )
+
+        # Botón para ver gráficos
+        self.boton_graficos = Boton(
+            x=300,
+            y=290,
+            ancho=200,
+            alto=50,
+            texto="Gráficos",
+            color=config.COLOR_BUTTON_SECONDARY
+        )
+
+        # Crear botones de dispositivos dinámicamente basados en device_manager
+        self.botones_dispositivos = {}
+        dispositivos_config = {
+            "bomba_agua": {"x": 50, "y": 150, "ancho": 260},
+            "ventilador": {"x": 50, "y": 220, "ancho": 200},
+            "uv": {"x": 50, "y": 290, "ancho": 260},
+            "techo": {"x": 50, "y": 360, "ancho": 200}
         }
+
+        for dispositivo, config_pos in dispositivos_config.items():
+            texto_inicial = self.device_manager.obtener_texto_boton(dispositivo)
+            color_inicial = self.device_manager.obtener_color_boton(dispositivo)
+
+            self.botones_dispositivos[dispositivo] = Boton(
+                x=config_pos["x"],
+                y=config_pos["y"],
+                ancho=config_pos["ancho"],
+                alto=50,
+                texto=texto_inicial,
+                color=color_inicial
+            )
 
         # Botón para el temporizador de abono
         self.boton_abono = Boton(
             x=50,
-            y=430,
-            ancho=200,
+            y=420,
+            ancho=260,
             alto=50,
-            texto="Configurar abono",
+            texto="Próximo aviso de abono",
             color=(100, 200, 100)  # Verde claro
         )
 
-        # Botón principal movido hacia abajo
+        # Botón para configurar el tiempo
+        self.boton_config_tiempo = Boton(
+            x=340,
+            y=420,
+            ancho=190,
+            alto=50,
+            texto="Configurar tiempo",
+            color=(200, 200, 100)
+        )
+
+        # Botón principal
         self.boton_principal = Boton(
             x=self.ancho // 2 - 100,
             y=550,
@@ -167,7 +162,7 @@ class Dashboard:
 
         # Botones para el diálogo de configuración de tiempo
         self.boton_aceptar_tiempo = Boton(
-            x=0,  # Posiciones se ajustarán al dibujar
+            x=0,
             y=0,
             ancho=120,
             alto=40,
@@ -212,13 +207,89 @@ class Dashboard:
                 return "redraw"
             elif resultado == "perfil_actualizado":
                 self.editando_perfil = False
-                # Actualizar los datos del usuario con los nuevos valores
                 self.usuario = self.editar_perfil.obtener_datos_actualizados()
                 return "perfil_actualizado"
             return None
 
         if evento.type == pygame.MOUSEBUTTONDOWN:
-            # Manejar clic en la X de la ventana de alerta PRIMERO
+            if self.boton_cerrar.rect.collidepoint(evento.pos):
+                return "logout"
+            elif self.boton_configuracion.rect.collidepoint(evento.pos):
+                return "configuracion"
+            elif self.boton_soporte.rect.collidepoint(evento.pos):
+                return "soporte"
+            elif self.boton_graficos.rect.collidepoint(evento.pos):
+                return "graficos"
+            elif self.boton_principal.rect.collidepoint(evento.pos):
+                print("Botón principal presionado")
+            elif self.boton_editar_perfil.rect.collidepoint(evento.pos):
+                self.editando_perfil = True
+                self.editar_perfil = EditarPerfil(self.ancho, self.alto, self.usuario)
+                return "redraw"
+            elif self.boton_capturar.rect.collidepoint(evento.pos):
+                print("Capturando y subiendo imagen")
+                esp32cam_to_drive.take_photo_and_upload()
+                print("Imagen capturada con éxito")
+            elif self.boton_timelapse.rect.collidepoint(evento.pos):
+                print("Timelapse presionado")
+                self.ver_timelapse()
+
+            # Manejar clics en los botones de dispositivos usando DeviceManager
+            for dispositivo, boton in self.botones_dispositivos.items():
+                if boton.rect.collidepoint(evento.pos):
+                    resultado = self.device_manager.controlar_dispositivo(dispositivo)
+
+                    if resultado["exito"]:
+                        # Actualizar el botón con los nuevos valores
+                        boton.texto = resultado["nuevo_texto"]
+                        boton.color = resultado["nuevo_color"]
+                        print(resultado["mensaje"])
+                    else:
+                        print(f"Error: {resultado['mensaje']}")
+
+                    return None
+
+            # Manejar clic en el botón de abono (solo para cancelar)
+            if self.boton_abono.rect.collidepoint(evento.pos) and self.temporizador_activo:
+                self.temporizador_activo = False
+                self.boton_abono.color = (100, 200, 100)
+                self.boton_abono.texto = "Próximo aviso de abono"
+
+            # Manejar clic en el botón de configurar tiempo
+            elif self.boton_config_tiempo.rect.collidepoint(evento.pos) and not self.configurando_tiempo:
+                self.configurando_tiempo = True
+                self.tiempo_horas = 0
+                self.tiempo_minutos = 0
+                self.tiempo_segundos = 0
+                self.texto_entrada = ""
+                self.entrada_activa = "horas"
+
+            # Manejar clics en el diálogo de configuración de tiempo
+            if self.configurando_tiempo:
+                # Botón Aceptar
+                if self.boton_aceptar_tiempo.rect.collidepoint(evento.pos):
+                    self.tiempo_duracion_temporizador = (self.tiempo_horas * 3600 +
+                                                         self.tiempo_minutos * 60 +
+                                                         self.tiempo_segundos)
+                    if self.tiempo_duracion_temporizador > 0:
+                        self.temporizador_activo = True
+                        self.tiempo_inicio_temporizador = time.time()
+                        self.boton_abono.color = (200, 100, 100)
+                        self.boton_abono.texto = "Cancelar aviso de abono"
+                    self.configurando_tiempo = False
+
+                # Botón Cancelar
+                elif self.boton_cancelar_tiempo.rect.collidepoint(evento.pos):
+                    self.configurando_tiempo = False
+
+                # Cambiar campo de entrada activa
+                for i, campo in enumerate(["horas", "minutos", "segundos"]):
+                    rect = pygame.Rect(self.ancho // 2 - 50, self.alto // 2 - 50 + i * 40, 100, 30)
+                    if rect.collidepoint(evento.pos):
+                        self.entrada_activa = campo
+                        self.texto_entrada = str(getattr(self, f"tiempo_{campo}"))
+
+            # Manejar clic en la X de la ventana de alerta
             if self.mostrar_alerta:
                 popup_rect = pygame.Rect(
                     (self.ancho - 400) // 2,
@@ -236,114 +307,9 @@ class Dashboard:
                 if close_rect.collidepoint(evento.pos):
                     self.mostrar_alerta = False
                     return "redraw"
-                # Si clickean en el popup, no procesamos otros botones
-                if popup_rect.collidepoint(evento.pos):
-                    return None
-
-            # Manejar clics en el diálogo de configuración de tiempo SEGUNDO
-            if self.configurando_tiempo:
-                # Verificar si el click está dentro del diálogo
-                dialogo_rect = pygame.Rect(self.ancho // 2 - 200, self.alto // 2 - 150, 400, 300)
-                if not dialogo_rect.collidepoint(evento.pos):
-                    # Click fuera del diálogo, no hacer nada
-                    return None
-
-                if self.boton_aceptar_tiempo.rect.collidepoint(evento.pos):
-                    self.tiempo_duracion_temporizador = (self.tiempo_horas * 3600 +
-                                                         self.tiempo_minutos * 60 +
-                                                         self.tiempo_segundos)
-                    if self.tiempo_duracion_temporizador > 0:
-                        self.temporizador_activo = True
-                        self.tiempo_inicio_temporizador = time.time()
-                        self.boton_abono.texto = "Cancelar abono"
-                        self.boton_abono.color = (200, 100, 100)
-                    self.configurando_tiempo = False
-                    return "redraw"
-                elif self.boton_cancelar_tiempo.rect.collidepoint(evento.pos):
-                    self.configurando_tiempo = False
-                    return "redraw"
-
-                # Cambiar campo de entrada activa
-                for i, campo in enumerate(["horas", "minutos", "segundos"]):
-                    rect = pygame.Rect(self.ancho // 2 - 50, self.alto // 2 - 70 + i * 40, 100, 30)
-                    if rect.collidepoint(evento.pos):
-                        self.entrada_activa = campo
-                        self.texto_entrada = str(getattr(self, f"tiempo_{campo}"))
-                        return None
-                return None
-
-            # Botones principales del dashboard
-            if self.boton_cerrar.rect.collidepoint(evento.pos):
-                return "logout"
-            elif self.boton_configuracion.rect.collidepoint(evento.pos):
-                return "configuracion"
-            elif self.boton_soporte.rect.collidepoint(evento.pos):
-                return "soporte"
-            elif self.boton_principal.rect.collidepoint(evento.pos):
-                print("Botón principal presionado")
-            elif self.boton_editar_perfil.rect.collidepoint(evento.pos):
-                self.editando_perfil = True
-                self.editar_perfil = EditarPerfil(self.ancho, self.alto, self.usuario)
-                return "redraw"
-            elif self.boton_capturar.rect.collidepoint(evento.pos):
-                print("Capturando y subiendo imagen")
-                esp32cam_to_drive.take_photo_and_upload()
-                print("Imagen capturada con exito")
-            elif self.boton_timelapse.rect.collidepoint(evento.pos):
-                print("Timelapse presionado")
-                self.ver_timelapse()
-            elif self.boton_abono.rect.collidepoint(evento.pos):
-                if self.temporizador_activo:
-                    # Cancelar el temporizador
-                    self.temporizador_activo = False
-                    self.boton_abono.texto = "Configurar abono"
-                    self.boton_abono.color = (100, 200, 100)
-                    return "redraw"
-                else:
-                    # Abrir configuración de tiempo
-                    self.configurando_tiempo = True
-                    self.tiempo_horas = 0
-                    self.tiempo_minutos = 0
-                    self.tiempo_segundos = 0
-                    self.texto_entrada = ""
-                    self.entrada_activa = "horas"
-                    return "redraw"
-
-            # Manejar clics en los botones de dispositivos
-            for dispositivo, boton in self.botones_dispositivos.items():
-                if boton.rect.collidepoint(evento.pos):
-                    if dispositivo == "techo":
-                        accion = "adelante" if not self.estados_dispositivos[dispositivo] else "stop"
-                        endpoint = "motorA"
-                    elif dispositivo == "bomba_agua":
-                        accion = "encender" if not self.estados_dispositivos[dispositivo] else "apagar"
-                        endpoint = "bomba"
-                    else:
-                        accion = "encender" if not self.estados_dispositivos[dispositivo] else "apagar"
-                        endpoint = dispositivo
-
-                    if self.enviar_comando(endpoint, accion):
-                        self.estados_dispositivos[dispositivo] = not self.estados_dispositivos[dispositivo]
-                        if self.estados_dispositivos[dispositivo]:
-                            boton.color = (255, 0, 0)
-                            if dispositivo == "techo":
-                                boton.texto = "Cerrar Techo"
-                            elif dispositivo == "bomba_agua":
-                                boton.texto = "Desactivar Bomba Agua"
-                            else:
-                                boton.texto = boton.texto.replace("Activar", "Desactivar")
-                        else:
-                            boton.color = config.COLOR_BUTTON
-                            if dispositivo == "techo":
-                                boton.texto = "Abrir Techo"
-                            elif dispositivo == "bomba_agua":
-                                boton.texto = "Activar Bomba Agua"
-                            else:
-                                boton.texto = boton.texto.replace("Desactivar", "Activar")
-                    return "redraw"
 
         # Manejar entrada de texto para configurar el tiempo
-        elif evento.type == pygame.KEYDOWN and self.configurando_tiempo:
+        if self.configurando_tiempo and evento.type == pygame.KEYDOWN:
             if evento.key == pygame.K_RETURN:
                 self.tiempo_duracion_temporizador = (self.tiempo_horas * 3600 +
                                                      self.tiempo_minutos * 60 +
@@ -351,15 +317,16 @@ class Dashboard:
                 if self.tiempo_duracion_temporizador > 0:
                     self.temporizador_activo = True
                     self.tiempo_inicio_temporizador = time.time()
-                    self.boton_abono.texto = "Cancelar abono"
                     self.boton_abono.color = (200, 100, 100)
+                    self.boton_abono.texto = "Cancelar aviso de abono"
                 self.configurando_tiempo = False
-                return "redraw"
+
             elif evento.key == pygame.K_ESCAPE:
                 self.configurando_tiempo = False
-                return "redraw"
+
             elif evento.key == pygame.K_BACKSPACE:
                 self.texto_entrada = self.texto_entrada[:-1]
+
             elif evento.unicode.isdigit():
                 self.texto_entrada += evento.unicode
 
@@ -375,7 +342,6 @@ class Dashboard:
                         self.tiempo_segundos = valor
                 except ValueError:
                     pass
-            return "redraw"
 
         return None
 
@@ -385,25 +351,19 @@ class Dashboard:
             tiempo_transcurrido = time.time() - self.tiempo_inicio_temporizador
             tiempo_restante = self.tiempo_duracion_temporizador - tiempo_transcurrido
 
-            if tiempo_restante <= 0:
-                # El temporizador ha terminado
+            if tiempo_restante <= 0:  # Temporizador ha terminado
                 self.temporizador_activo = False
                 self.mostrar_alerta = True
                 self.alerta_tiempo = time.time()
-                self.boton_abono.texto = "Configurar abono"
                 self.boton_abono.color = (100, 200, 100)
-                print("¡Temporizador de abono terminado! Mostrando alerta.")
+                self.boton_abono.texto = "Próximo aviso de abono"
                 return "redraw"
-
-        # Cerrar alerta automáticamente después de 10 segundos
-        if self.mostrar_alerta and time.time() - self.alerta_tiempo > 10:
-            self.mostrar_alerta = False
-            return "redraw"
 
         return None
 
     def dibujar_popup_abono(self, superficie):
         """Dibuja el pop-up de abono centrado en la pantalla"""
+        # Dimensiones del pop-up
         ancho_popup = 400
         alto_popup = 200
 
@@ -416,36 +376,27 @@ class Dashboard:
         overlay.fill((0, 0, 0, 180))
         superficie.blit(overlay, (0, 0))
 
-        # Fondo del pop-up con sombra
-        sombra_rect = pygame.Rect(x + 5, y + 5, ancho_popup, alto_popup)
-        pygame.draw.rect(superficie, (0, 0, 0, 100), sombra_rect)
-
-        # Fondo principal del pop-up
+        # Fondo del pop-up
         pygame.draw.rect(superficie, (255, 255, 255), (x, y, ancho_popup, alto_popup))
         pygame.draw.rect(superficie, (255, 0, 0), (x, y, ancho_popup, alto_popup), 3)
 
-        # Dibujar botón X para cerrar
+        # Dibujar botón X para cerrar (esquina superior derecha)
         close_rect = pygame.Rect(x + ancho_popup - 30, y + 10, 20, 20)
-        pygame.draw.rect(superficie, (255, 200, 200), close_rect)
-        pygame.draw.line(superficie, (255, 0, 0), (close_rect.left + 3, close_rect.top + 3),
-                         (close_rect.right - 3, close_rect.bottom - 3), 3)
-        pygame.draw.line(superficie, (255, 0, 0), (close_rect.left + 3, close_rect.bottom - 3),
-                         (close_rect.right - 3, close_rect.top + 3), 3)
+        pygame.draw.line(superficie, (255, 0, 0), (close_rect.left, close_rect.top),
+                         (close_rect.right, close_rect.bottom), 2)
+        pygame.draw.line(superficie, (255, 0, 0), (close_rect.left, close_rect.bottom),
+                         (close_rect.right, close_rect.top), 2)
 
         # Título del pop-up
-        titulo = self.fuente_titulo.render("¡APLICAR ABONO!", True, (255, 0, 0))
+        titulo = self.fuente_titulo.render("¡ABONAR PLANTAS!", True, (255, 0, 0))
         superficie.blit(titulo, (x + (ancho_popup - titulo.get_width()) // 2, y + 30))
 
         # Mensaje
-        mensaje = self.fuente_normal.render("Es hora de aplicar abono", True, (0, 0, 0))
+        mensaje = self.fuente_normal.render("El temporizador ha finalizado.", True, (0, 0, 0))
         superficie.blit(mensaje, (x + (ancho_popup - mensaje.get_width()) // 2, y + 80))
 
-        mensaje2 = self.fuente_normal.render("a tus plantas.", True, (0, 0, 0))
+        mensaje2 = self.fuente_normal.render("Por favor, abone sus plantas.", True, (0, 0, 0))
         superficie.blit(mensaje2, (x + (ancho_popup - mensaje2.get_width()) // 2, y + 120))
-
-        # Instrucción para cerrar
-        instruccion = self.fuente_pequena.render("Haz clic en la X para cerrar", True, (100, 100, 100))
-        superficie.blit(instruccion, (x + (ancho_popup - instruccion.get_width()) // 2, y + 160))
 
     @staticmethod
     def cargar_imagen_desde_github():
@@ -460,11 +411,6 @@ class Dashboard:
             return None
 
     def dibujar(self, superficie):
-        # Si estamos editando perfil, solo mostrar esa vista
-        if self.editando_perfil:
-            self.editar_perfil.dibujar(superficie)
-            return
-
         # Fondo claro
         superficie.fill(config.BACKGROUND_COLOR)
 
@@ -488,21 +434,25 @@ class Dashboard:
         self.boton_configuracion.dibujar(superficie)
         self.boton_capturar.dibujar(superficie)
         self.boton_timelapse.dibujar(superficie)
+        self.boton_graficos.dibujar(superficie)
 
         # Dibujar botones de dispositivos
         for boton in self.botones_dispositivos.values():
             boton.dibujar(superficie)
 
-        # Dibujar botón de abono
-        self.boton_abono.dibujar(superficie)
-
-        # Dibujar botones inferiores (alineados)
+        # Dibujar botones inferiores
         self.boton_principal.dibujar(superficie)
+        self.boton_abono.dibujar(superficie)
+        self.boton_config_tiempo.dibujar(superficie)
         self.boton_editar_perfil.dibujar(superficie)
         self.boton_soporte.dibujar(superficie)
 
-        # MOSTRAR TIEMPO RESTANTE DEL TEMPORIZADOR (SIEMPRE VISIBLE)
+        # Mostrar tiempo restante si el temporizador está activo
         if self.temporizador_activo:
+            if not hasattr(self, 'tiempo_duracion_temporizador') or not isinstance(self.tiempo_duracion_temporizador,
+                                                                                   (int, float)):
+                self.tiempo_duracion_temporizador = 0
+
             tiempo_transcurrido = time.time() - self.tiempo_inicio_temporizador
             tiempo_restante = max(0, self.tiempo_duracion_temporizador - tiempo_transcurrido)
 
@@ -510,15 +460,16 @@ class Dashboard:
             minutos = min(59, int((tiempo_restante % 3600) // 60))
             segundos = min(59, int(tiempo_restante % 60))
 
-            # Fondo para el contador
-            contador_rect = pygame.Rect(50, 485, 300, 40)
-            pygame.draw.rect(superficie, (255, 255, 200), contador_rect)
-            pygame.draw.rect(superficie, (200, 200, 0), contador_rect, 2)
-
             texto_tiempo = self.fuente_normal.render(
-                f"Próximo abono en: {horas:02d}:{minutos:02d}:{segundos:02d}",
+                f"Tiempo restante: {horas:02d}:{minutos:02d}:{segundos:02d}",
                 True, (0, 0, 0))
-            superficie.blit(texto_tiempo, (55, 495))
+
+            pos_y = min(510, self.alto - 30)
+            superficie.blit(texto_tiempo, (320, pos_y))
+
+        if self.editando_perfil:
+            self.editar_perfil.dibujar(superficie)
+            return
 
         # Mostrar cuadro de configuración de tiempo
         if self.configurando_tiempo:
@@ -553,7 +504,7 @@ class Dashboard:
                 pygame.draw.rect(superficie, (255, 255, 255), rect)
                 pygame.draw.rect(superficie, (0, 0, 255) if self.entrada_activa == campo else (0, 0, 0), rect, 2)
 
-                # Texto
+                # Texto (lo que el usuario está escribiendo o el valor actual)
                 texto_valor = self.texto_entrada if self.entrada_activa == campo else str(valor)
                 texto_render = self.fuente_normal.render(texto_valor, True, (0, 0, 0))
                 superficie.blit(texto_render, (self.ancho // 2 - 45, self.alto // 2 - 65 + i * 40))
@@ -561,33 +512,13 @@ class Dashboard:
             # Botones Aceptar y Cancelar
             self.boton_aceptar_tiempo.x = self.ancho // 2 - 130
             self.boton_aceptar_tiempo.y = self.alto // 2 + 80
-            # Crear o actualizar el rect del botón
-            if not hasattr(self.boton_aceptar_tiempo, 'rect') or self.boton_aceptar_tiempo.rect is None:
-                self.boton_aceptar_tiempo.rect = pygame.Rect(
-                    self.boton_aceptar_tiempo.x,
-                    self.boton_aceptar_tiempo.y,
-                    120, 40
-                )
-            else:
-                self.boton_aceptar_tiempo.rect.x = self.boton_aceptar_tiempo.x
-                self.boton_aceptar_tiempo.rect.y = self.boton_aceptar_tiempo.y
             self.boton_aceptar_tiempo.dibujar(superficie)
 
             self.boton_cancelar_tiempo.x = self.ancho // 2 + 10
             self.boton_cancelar_tiempo.y = self.alto // 2 + 80
-            # Crear o actualizar el rect del botón
-            if not hasattr(self.boton_cancelar_tiempo, 'rect') or self.boton_cancelar_tiempo.rect is None:
-                self.boton_cancelar_tiempo.rect = pygame.Rect(
-                    self.boton_cancelar_tiempo.x,
-                    self.boton_cancelar_tiempo.y,
-                    120, 40
-                )
-            else:
-                self.boton_cancelar_tiempo.rect.x = self.boton_cancelar_tiempo.x
-                self.boton_cancelar_tiempo.rect.y = self.boton_cancelar_tiempo.y
             self.boton_cancelar_tiempo.dibujar(superficie)
 
-        # DIBUJAR POP-UP DE ABONO (DEBE SER LO ÚLTIMO PARA ESTAR ENCIMA)
+        # Mostrar alerta de abono (DEBE SER LO ÚLTIMO QUE SE DIBUJA)
         if self.mostrar_alerta:
             self.dibujar_popup_abono(superficie)
 
@@ -606,13 +537,12 @@ class Dashboard:
             pos_y = 20
             superficie.blit(imagen_pequena, (pos_x, pos_y))
 
-    def iniciar_captura(self, intervalo):
-        intervalo = 300
+    def iniciar_captura(self, intervalo=300):
         if not self.autocapture:
             self.autocapture = True
             self.capture_thread = threading.Thread(target=self._captura_loop, args=(intervalo,), daemon=True)
             self.capture_thread.start()
-            print("Captura automatica iniciada")
+            print("Captura automática iniciada")
         else:
             print("Ya se está capturando la imagen")
 
@@ -632,3 +562,15 @@ class Dashboard:
         )
         viewer.descargar_imagenes()
         viewer.mostrar_timelapse(duracion=0.5)
+
+    def obtener_estado_dispositivo(self, dispositivo: str) -> bool:
+        """Método de compatibilidad - delega al device_manager"""
+        return self.device_manager.obtener_estado_dispositivo(dispositivo)
+
+    def resetear_todos_dispositivos(self):
+        """Resetea todos los dispositivos usando el device_manager"""
+        self.device_manager.resetear_todos_dispositivos()
+        # Actualizar la UI de los botones
+        for dispositivo, boton in self.botones_dispositivos.items():
+            boton.texto = self.device_manager.obtener_texto_boton(dispositivo)
+            boton.color = self.device_manager.obtener_color_boton(dispositivo)
