@@ -25,7 +25,7 @@ class Dashboard:
         self.fuente_pequena = pygame.font.Font(None, 24)
 
         # URL base del ESP32 - AJUSTA ESTO CON TU IP REAL
-        self.esp32_base_url = "http://192.168.0.26"
+        self.esp32_base_url = "http://172.19.14.137"
         # Cargar la imagen
         self.imagen = Dashboard.cargar_imagen_desde_github()
         # Estados de los dispositivos (False = apagado, True = encendido)
@@ -53,6 +53,7 @@ class Dashboard:
         self.crear_componentes()
         self.autocapture = False
         self.capture_thread = None
+        self.techoAbierto = True
 
     def enviar_comando(self, dispositivo, accion):
         try:
@@ -107,6 +108,15 @@ class Dashboard:
             color=config.COLOR_BUTTON_SECONDARY
         )
 
+        # Botón para ver gráficos
+        self.boton_graficos = Boton(
+            x=300,
+            y=290,
+            ancho=200,
+            alto=50,
+            texto="Gráficos",
+            color=config.COLOR_BUTTON_SECONDARY
+        )
 
         # Botones de control de dispositivos
         self.botones_dispositivos = {
@@ -223,6 +233,9 @@ class Dashboard:
                 # Actualizar los datos del usuario con los nuevos valores
                 self.usuario = self.editar_perfil.obtener_datos_actualizados()
                 return "perfil_actualizado"
+
+
+
             return None
 
 
@@ -233,7 +246,8 @@ class Dashboard:
                 return "configuracion"
             elif self.boton_soporte.rect.collidepoint(evento.pos):
                 return "soporte"
-
+            elif self.boton_graficos.rect.collidepoint(evento.pos):
+                return "graficos"
             elif self.boton_principal.rect.collidepoint(evento.pos):
                 print("Botón principal presionado")
             elif self.boton_editar_perfil.rect.collidepoint(evento.pos):
@@ -242,10 +256,8 @@ class Dashboard:
                 return "redraw"
             elif self.boton_capturar.rect.collidepoint(evento.pos):
                 print("Capturando y subiendo imagen")
-
                 esp32cam_to_drive.take_photo_and_upload()
                 print("Imagen capturada con exito")
-
             elif self.boton_timelapse.rect.collidepoint(evento.pos):
                 print("Timelapse presionado")
                 self.ver_timelapse()
@@ -269,6 +281,7 @@ class Dashboard:
                             boton.color = (255, 0, 0)
                             if dispositivo == "techo":
                                 boton.texto = "Cerrar Techo"
+                                techoAbierto=False
                             elif dispositivo == "bomba_agua":
                                 boton.texto = "Desactivar Bomba Agua"
                             else:
@@ -277,6 +290,7 @@ class Dashboard:
                             boton.color = config.COLOR_BUTTON
                             if dispositivo == "techo":
                                 boton.texto = "Abrir Techo"
+                                techoAbierto=True
                             elif dispositivo == "bomba_agua":
                                 boton.texto = "Activar Bomba Agua"
                             else:
@@ -322,8 +336,6 @@ class Dashboard:
                     if rect.collidepoint(evento.pos):
                         self.entrada_activa = campo
                         self.texto_entrada = str(getattr(self, f"tiempo_{campo}"))
-
-
 
             # Manejar clic en la X de la ventana de alerta
             if self.mostrar_alerta:
@@ -474,6 +486,7 @@ class Dashboard:
 
         self.boton_capturar.dibujar(superficie)
         self.boton_timelapse.dibujar(superficie)
+        self.boton_graficos.dibujar(superficie)
 
         # Dibujar botones de dispositivos
         for boton in self.botones_dispositivos.values():
@@ -582,10 +595,11 @@ class Dashboard:
             pos_x = 480
             pos_y = 20
 
-
             superficie.blit(imagen_pequena, (pos_x, pos_y))
+
     def iniciar_captura(self, intervalo):
         intervalo = 300
+
         if not self.autocapture:
             self.autocapture = True
             self.capture_thread = threading.Thread(target=self._captura_loop, args=(intervalo,), daemon=True)
@@ -610,4 +624,3 @@ class Dashboard:
         )
         viewer.descargar_imagenes()
         viewer.mostrar_timelapse(duracion=0.5)
-
