@@ -89,6 +89,11 @@ while ejecutando:
     ventana.fill(config.BACKGROUND_COLOR)
 
     if estado_actual in ESTADOS and ESTADOS[estado_actual]:
+        # Llamar actualizar() si el objeto lo tiene
+        if hasattr(ESTADOS[estado_actual], 'actualizar'):
+            resultado_actualizacion = ESTADOS[estado_actual].actualizar()
+            # Si actualizar() devuelve algo, podrías manejarlo aquí si es necesario
+
         ESTADOS[estado_actual].dibujar(ventana)
 
     pygame.display.flip()
