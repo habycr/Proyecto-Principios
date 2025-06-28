@@ -30,24 +30,24 @@ WebServer server(80);
 int leerNivel(int pin) {
   int valor = analogRead(pin);
   if (pin == pinSensorDrenaje) {
-    int nivel = map(valor, 0, 4000, 1, 10);
-    return constrain(nivel, 1, 10);
+    int nivel = map(valor, 0, 4000, 0, 10);
+    return constrain(nivel, 0, 10);
   } else {
-    int nivel = map(valor, 0, 1152, 1, 10);
-    return constrain(nivel, 1, 10);
+    int nivel = map(valor, 0, 1152, 0, 10);
+    return constrain(nivel, 0, 10);
   }
 }
 
 int leerIntensidadLuz() {
-  int valor = analogRead(pinSensorLuz);  // 930 oscuro, 0 luz directa
-  int intensidad = map(valor, 930, 0, 1, 10);
-  return constrain(intensidad, 1, 10);
+  int valor = analogRead(pinSensorLuz);
+  int intensidad = map(valor, 930, 0, 0, 10);
+  return constrain(intensidad, 0, 10);
 }
 
 int leerHumedadTierra() {
-  int valor = analogRead(pinSensorHumedad);  // 4095 = seco, 2440 = mojado
-  int humedad = map(valor, 4095, 2240, 1, 10);  // Invertido: más seco = más alto
-  return constrain(humedad, 1, 10);
+  int valor = analogRead(pinSensorHumedad);
+  int humedad = map(valor, 4095, 2240, 0, 10);
+  return constrain(humedad, 0, 10);
 }
 
 
@@ -119,8 +119,8 @@ void setup() {
     String claseDrenaje = (drenaje <= 3) ? "bajo" : "";
     String claseRiego = (riego <= 3) ? "bajo" : "";
 
-    String datos = "<div class='" + claseDrenaje + "'>Nivel Drenaje: " + String(drenaje) + " / 10</div>";
-    datos += "<div class='" + claseRiego + "'>Nivel Riego: " + String(riego) + " / 10</div>";
+    String datos = "<div class='" + claseDrenaje + "'>Nivel Tanque Drenaje: " + String(drenaje) + " / 10</div>";
+    datos += "<div class='" + claseRiego + "'>Nivel Tanque Riego: " + String(riego) + " / 10</div>";
     datos += "<div>Intensidad de Luz: " + String(luz) + " / 10</div>";
     datos += "<div>Nivel Humedad del Suelo: " + String(humedad) + " / 10</div>";
 
