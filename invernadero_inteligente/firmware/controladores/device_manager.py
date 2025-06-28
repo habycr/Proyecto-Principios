@@ -1,0 +1,128 @@
+# frontend/components/dashboard/esp32/device_manager.py
+from .esp32_controller import ESP32Controller
+from invernadero_inteligente.frontend.config import config
+
+
+class DeviceManager:
+    """Manejador específico para controlar dispositivos del invernadero"""
+
+    def __init__(self, esp32_controller: ESP32Controller):
+        self.esp32 = esp32_controller
+        self.device_mappings = {
+            "bomba_agua": {
+                "endpoint": "bomba",
+                "acciones": {"encender": "encender", "apagar": "apagar"},
+                "textos": {
+                    "activar": "Activar Bomba de Agua",
+                    "desactivar": "Desactivar Bomba Agua"
+                }
+            },
+            "ventilador": {
+                "endpoint": "ventilador",
+                "acciones": {"encender": "encender", "apagar": "apagar"},
+                "textos": {
+                    "activar": "Activar Ventilador",
+                    "desactivar": "Desactivar Ventilador"
+                }
+            },
+            "uv": {
+                "endpoint": "uv",
+                "acciones": {"encender": "encender", "apagar": "apagar"},
+                "textos": {
+                    "activar": "Activar Luz Ultravioleta",
+                    "desactivar": "Desactivar Luz Ultravioleta"
+                }
+            },
+            "techo": {
+                "endpoint": "motorA",
+                "acciones": {"abrir": "adelante", "cerrar": "stop"},
+                "textos": {
+                    "activar": "Abrir Techo",
+                    "desactivar": "Cerrar Techo"
+                }
+            }
+        }
+
+    def controlar_dispositivo(self, dispositivo: str) -> dict:
+        """
+        Controla un dispositivo específico (enciende/apaga o abre/cierra)
+
+        Args:
+            dispositivo: Nombre del dispositivo a controlar
+
+        Returns:
+            dict: Resultado de la operación con éxito, nuevo estado y texto del botón
+        """
+        if dispositivo not in self.device_mappings:
+            return {
+                "exito": False,
+                "mensaje": f"Dispositivo {dispositivo} no encontrado",
+                "nuevo_estado": False,
+                "nuevo_texto": "",
+                "nuevo_color": config.COLOR_BUTTON
+            }
+
+        mapping = self.device_mappings[dispositivo]
+        estado_actual = self.esp32.obtener_estado_dispositivo(dispositivo)
+
+        # Determinar acción según el estado actual
+        if dispositivo == "techo":
+            accion = mapping["acciones"]["cerrar"] if estado_actual else mapping["acciones"]["abrir"]
+        else:
+            accion = mapping["acciones"]["apagar"] if estado_actual else mapping["acciones"]["encender"]
+
+        # Enviar comando
+        exito = self.esp32.enviar_comando(mapping["endpoint"], accion)
+
+        if exito:
+            nuevo_estado = not estado_actual
+            self.esp32.establecer_estado_dispositivo(dispositivo, nuevo_estado)
+
+            # Determinar nuevo texto y color
+            if nuevo_estado:
+                nuevo_texto = mapping["textos"]["desactivar"]
+                nuevo_color = (255, 0, 0)  # Rojo para activo
+            else:
+                nuevo_texto = mapping["textos"]["activar"]
+                nuevo_color = config.COLOR_BUTTON  # Color normal
+
+            return {
+                "exito": True,
+                "mensaje": f"{dispositivo} {'activado' if nuevo_estado else 'desactivado'} correctamente",
+                "nuevo_estado": nuevo_estado,
+                "nuevo_texto": nuevo_texto,
+                "nuevo_color": nuevo_color
+            }
+        else:
+            return {
+                "exito": False,
+                "mensaje": f"Error al controlar {dispositivo}",
+                "nuevo_estado": estado_actual,
+                "nuevo_texto": mapping["textos"]["desactivar"] if estado_actual else mapping["textos"]["activar"],
+                "nuevo_color": (255, 0, 0) if estado_actual else config.COLOR_BUTTON
+            }
+
+    def obtener_estado_dispositivo(self, dispositivo: str) -> bool:
+        """Obtiene el estado actual de un dispositivo"""
+        return self.esp32.obtener_estado_dispositivo(dispositivo)
+
+    def obtener_texto_boton(self, dispositivo: str) -> str:
+        """Obtiene el texto apropiado para el botón según el estado del dispositivo"""
+        if dispositivo not in self.device_mappings:
+            return "Dispositivo no encontrado"
+
+        mapping = self.device_mappings[dispositivo]
+        estado = self.esp32.obtener_estado_dispositivo(dispositivo)
+
+        return mapping["textos"]["desactivar"] if estado else mapping["textos"]["activar"]
+
+    def obtener_color_boton(self, dispositivo: str) -> tuple:
+        """Obtiene el color apropiado para el botón según el estado del dispositivo"""
+        estado = self.esp32.obtener_estado_dispositivo(dispositivo)
+        return (255, 0, 0) if estado else config.COLOR_BUTTON
+
+    def resetear_todos_dispositivos(self):
+        """Resetea todos los dispositivos a estado apagado/cerrado"""
+        for dispositivo in self.device_mappings.keys():
+            if self.esp32.obtener_estado_dispositivo(dispositivo):
+                self.controlar_dispositivo(dispositivo)
