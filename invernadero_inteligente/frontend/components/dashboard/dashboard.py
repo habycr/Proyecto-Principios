@@ -30,7 +30,7 @@ class Dashboard:
         self.fuente_pequena = pygame.font.Font(None, 24)
 
         # Inicializar controladores ESP32
-        self.esp32_controller = ESP32Controller("http://172.19.14.137")
+        self.esp32_controller = ESP32Controller("http://192.168.0.17")
         self.device_manager = DeviceManager(self.esp32_controller)
 
         # Cargar la imagen
@@ -55,7 +55,18 @@ class Dashboard:
         # Variables para captura automática
         self.autocapture = False
         self.capture_thread = None
-
+        # Variables para actualización de sensores
+        self.datos_sensores = {
+            "temperatura": 0.0,
+            "humedad_ambiente": 0.0,
+            "nivel_drenaje": 0,
+            "nivel_riego": 0,
+            "intensidad_luz": 0,
+            "humedad_suelo": 0,
+            "ultimo_update": 0
+        }
+        self.ultimo_update_sensores = 0
+        self.intervalo_update_sensores = 10  # Actualizar cada 10 segundos
         self.crear_componentes()
 
     def crear_componentes(self):
@@ -98,7 +109,15 @@ class Dashboard:
             texto="Ver Timelapse",
             color=config.COLOR_BUTTON_SECONDARY
         )
-
+        # Botón para actualizar sensores manualmente
+        self.boton_actualizar_sensores = Boton(
+            x=300,
+            y=430,  # Después del botón de alertas
+            ancho=200,
+            alto=50,
+            texto="Actualizar Sensores",
+            color=config.COLOR_BUTTON_SECONDARY
+        )
         # Botón para ver gráficos
         self.boton_graficos = Boton(
             x=300,
@@ -302,7 +321,15 @@ class Dashboard:
             elif self.boton_timelapse.rect.collidepoint(evento.pos):
                 print("Timelapse presionado")
                 self.ver_timelapse()
-
+            elif self.boton_actualizar_sensores.rect.collidepoint(evento.pos):
+                print("Actualizando datos de sensores...")
+                datos = self.device_manager.actualizar_datos_sensores()
+                if datos:
+                    self.datos_sensores.update(datos)
+                    print("Sensores actualizados correctamente")
+                else:
+                    print("Error al actualizar sensores")
+                return "redraw"
             # IMPLEMENTACIÓN DEL BOTÓN DE ABONO DEL DASHBOARD 2
             elif self.boton_abono.rect.collidepoint(evento.pos):
                 if self.temporizador_activo:
@@ -374,6 +401,15 @@ class Dashboard:
         return None
 
     def actualizar(self):
+
+        # Actualizar sensores automáticamente
+        tiempo_actual = time.time()
+        if tiempo_actual - self.ultimo_update_sensores > self.intervalo_update_sensores:
+            datos_nuevos = self.device_manager.actualizar_datos_sensores()
+            if datos_nuevos:
+                self.datos_sensores.update(datos_nuevos)
+                self.ultimo_update_sensores = tiempo_actual
+                return "redraw"
         # Verificar si el temporizador ha terminado - MEJORADO DEL DASHBOARD 2
         if self.temporizador_activo:
             tiempo_transcurrido = time.time() - self.tiempo_inicio_temporizador
@@ -440,6 +476,90 @@ class Dashboard:
         # Instrucción para cerrar
         instruccion = self.fuente_pequena.render("Haz clic en la X para cerrar", True, (100, 100, 100))
         superficie.blit(instruccion, (x + (ancho_popup - instruccion.get_width()) // 2, y + 160))
+
+    def dibujar_panel_sensores(self, superficie):
+        """Dibuja el panel de información de sensores"""
+        # Panel de sensores en la parte derecha
+        panel_x = self.ancho - 280
+        panel_y = 260
+        panel_ancho = 260
+        panel_alto = 280
+
+        # Fondo del panel
+        pygame.draw.rect(superficie, (245, 245, 245),
+                         (panel_x, panel_y, panel_ancho, panel_alto))
+        pygame.draw.rect(superficie, (200, 200, 200),
+                         (panel_x, panel_y, panel_ancho, panel_alto), 2)
+
+        # Título del panel
+        titulo = self.fuente_normal.render("Estado de Sensores", True, (0, 0, 0))
+        superficie.blit(titulo, (panel_x + 10, panel_y + 10))
+
+        # Obtener datos actuales
+        datos = self.device_manager.obtener_datos_sensores_actuales()
+
+        # Lista de sensores con sus unidades y colores
+        sensores_info = [
+            ("Temperatura", f"{datos.get('temperatura', 0):.1f}°C", (255, 100, 100)),
+            ("Humedad Ambiente", f"{datos.get('humedad_ambiente', 0):.1f}%", (100, 150, 255)),
+            ("Nivel Drenaje", f"{datos.get('nivel_drenaje', 0)}/10", (150, 100, 255)),
+            ("Nivel Riego", f"{datos.get('nivel_riego', 0)}/10", (100, 200, 255)),
+            ("Intensidad Luz", f"{datos.get('intensidad_luz', 0)}/10", (255, 200, 100)),
+            ("Humedad Suelo", f"{datos.get('humedad_suelo', 0)}/10", (150, 200, 100))
+        ]
+
+        # Dibujar cada sensor
+        for i, (nombre, valor, color) in enumerate(sensores_info):
+            y_pos = panel_y + 45 + i * 35
+
+            # Nombre del sensor
+            texto_nombre = self.fuente_pequena.render(nombre + ":", True, (0, 0, 0))
+            superficie.blit(texto_nombre, (panel_x + 10, y_pos))
+
+            # Valor del sensor con color
+            texto_valor = self.fuente_pequena.render(valor, True, color)
+            superficie.blit(texto_valor, (panel_x + 160, y_pos))
+
+            # Indicador visual (barra o círculo según el tipo)
+            if "Nivel" in nombre or "Intensidad" in nombre or "Humedad Suelo" in nombre:
+                # Barra de progreso para valores de 0-10
+                barra_x = panel_x + 10
+                barra_y = y_pos + 18
+                barra_ancho = 200
+                barra_alto = 8
+
+                # Fondo de la barra
+                pygame.draw.rect(superficie, (220, 220, 220),
+                                 (barra_x, barra_y, barra_ancho, barra_alto))
+
+                # Barra de progreso
+                if "drenaje" in nombre.lower():
+                    progreso = datos.get('nivel_drenaje', 0) / 10
+                elif "riego" in nombre.lower():
+                    progreso = datos.get('nivel_riego', 0) / 10
+                elif "luz" in nombre.lower():
+                    progreso = datos.get('intensidad_luz', 0) / 10
+                elif "suelo" in nombre.lower():
+                    progreso = datos.get('humedad_suelo', 0) / 10
+                else:
+                    progreso = 0
+
+                pygame.draw.rect(superficie, color,
+                                 (barra_x, barra_y, int(barra_ancho * progreso), barra_alto))
+
+        # Tiempo de última actualización
+        if datos.get('ultimo_update', 0) > 0:
+            tiempo_transcurrido = time.time() - datos['ultimo_update']
+            if tiempo_transcurrido < 60:
+                tiempo_texto = f"Hace {int(tiempo_transcurrido)}s"
+            else:
+                tiempo_texto = f"Hace {int(tiempo_transcurrido // 60)}m"
+        else:
+            tiempo_texto = "Sin datos"
+
+        texto_tiempo = pygame.font.Font(None, 20).render(
+            f"Actualizado: {tiempo_texto}", True, (100, 100, 100))
+        superficie.blit(texto_tiempo, (panel_x + 10, panel_y + panel_alto - 20))
 
     @staticmethod
     def cargar_imagen_desde_github():
@@ -590,7 +710,11 @@ class Dashboard:
         # DIBUJAR POP-UP DE ABONO (DEBE SER LO ÚLTIMO PARA ESTAR ENCIMA)
         if self.mostrar_alerta:
             self.dibujar_popup_abono(superficie)
+            # Dibujar panel de sensores
+        self.dibujar_panel_sensores(superficie)
 
+        # Dibujar botón de actualizar sensores
+        self.boton_actualizar_sensores.dibujar(superficie)
         # Mensaje inferior
         mensaje = pygame.font.Font(None, 24).render(
             "Esta es una vista básica del dashboard",
@@ -643,3 +767,15 @@ class Dashboard:
         for dispositivo, boton in self.botones_dispositivos.items():
             boton.texto = self.device_manager.obtener_texto_boton(dispositivo)
             boton.color = self.device_manager.obtener_color_boton(dispositivo)
+
+    def obtener_datos_sensores_actuales(self) -> dict:
+        """Obtiene los datos actuales de sensores desde el device_manager"""
+        return self.device_manager.obtener_datos_sensores_actuales()
+
+    def forzar_actualizacion_sensores(self):
+        """Fuerza una actualización inmediata de los sensores"""
+        datos = self.device_manager.actualizar_datos_sensores()
+        if datos:
+            self.datos_sensores.update(datos)
+            return True
+        return False
