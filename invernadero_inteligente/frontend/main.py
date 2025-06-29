@@ -102,3 +102,4 @@ while ejecutando:
 
 pygame.quit()
 sys.exit()
+

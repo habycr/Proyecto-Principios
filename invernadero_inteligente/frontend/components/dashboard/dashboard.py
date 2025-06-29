@@ -14,7 +14,7 @@ from invernadero_inteligente.frontend.services.api_service import APIService
 from invernadero_inteligente.firmware import esp32cam_to_drive
 from invernadero_inteligente.firmware.timelapse_viewer import TimelapseViewer
 from invernadero_inteligente.frontend.components.dashboard.editar_perfil.editar_perfil import EditarPerfil
-
+from invernadero_inteligente.frontend.components.dashboard.alertas.menu_alertas import MenuAlertas
 # Importar los nuevos controladores
 from invernadero_inteligente.firmware.controladores.esp32_controller import ESP32Controller
 from invernadero_inteligente.firmware.controladores.device_manager import DeviceManager
@@ -50,7 +50,8 @@ class Dashboard:
         self.entrada_activa = "horas"
         self.editando_perfil = False
         self.editar_perfil = None
-
+        self.en_menu_alertas = False
+        self.menu_alertas = None
         # Variables para captura automática
         self.autocapture = False
         self.capture_thread = None
@@ -189,6 +190,16 @@ class Dashboard:
             color=config.COLOR_BUTTON_SECONDARY
         )
 
+        # Botón para alertas
+        self.boton_alertas = Boton(
+            x=300,
+            y=360,  # Posicionado después del botón de gráficos
+            ancho=200,
+            alto=50,
+            texto="Alertas",
+            color=config.COLOR_BUTTON_SECONDARY
+        )
+
     def manejar_evento(self, evento):
         if self.editando_perfil:
             resultado = self.editar_perfil.manejar_evento(evento)
@@ -199,6 +210,15 @@ class Dashboard:
                 self.editando_perfil = False
                 self.usuario = self.editar_perfil.obtener_datos_actualizados()
                 return "perfil_actualizado"
+            return None
+
+        if self.en_menu_alertas:
+            resultado = self.menu_alertas.manejar_evento(evento)
+            if resultado == "volver_dashboard":
+                self.en_menu_alertas = False
+                return "redraw"
+            elif resultado == "redraw":
+                return "redraw"
             return None
 
         if evento.type == pygame.MOUSEBUTTONDOWN:
@@ -261,6 +281,10 @@ class Dashboard:
                 return "logout"
             elif self.boton_configuracion.rect.collidepoint(evento.pos):
                 return "configuracion"
+            elif self.boton_alertas.rect.collidepoint(evento.pos):
+                self.en_menu_alertas = True
+                self.menu_alertas = MenuAlertas(self.ancho, self.alto)
+                return "redraw"
             elif self.boton_soporte.rect.collidepoint(evento.pos):
                 return "soporte"
             elif self.boton_graficos.rect.collidepoint(evento.pos):
@@ -435,6 +459,10 @@ class Dashboard:
             self.editar_perfil.dibujar(superficie)
             return
 
+        if self.en_menu_alertas:
+            self.menu_alertas.dibujar(superficie)
+            return
+
         # Fondo claro
         superficie.fill(config.BACKGROUND_COLOR)
 
@@ -459,6 +487,7 @@ class Dashboard:
         self.boton_capturar.dibujar(superficie)
         self.boton_timelapse.dibujar(superficie)
         self.boton_graficos.dibujar(superficie)
+        self.boton_alertas.dibujar(superficie)
 
         # Dibujar botones de dispositivos
         for boton in self.botones_dispositivos.values():
