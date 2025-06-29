@@ -137,7 +137,6 @@ class APIService:
     @staticmethod
     def actualizar_perfil(email, datos_actualizados):
         return APIService._make_request(f"/usuario/{email}", datos_actualizados, method='PUT')
-
     @staticmethod
     def obtener_usuario(email):
         """Obtiene la información de un usuario por su email"""
