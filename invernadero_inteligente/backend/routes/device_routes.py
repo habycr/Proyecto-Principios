@@ -1,6 +1,6 @@
 # backend/routes/device_routes.py
 from flask import Blueprint, jsonify, request
-from backend.models.device import Device
+from models.device import Device
 
 device_bp = Blueprint('device', __name__)
 

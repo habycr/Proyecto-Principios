@@ -283,7 +283,7 @@ class Dashboard:
                 return "configuracion"
             elif self.boton_alertas.rect.collidepoint(evento.pos):
                 self.en_menu_alertas = True
-                self.menu_alertas = MenuAlertas(self.ancho, self.alto)
+                self.menu_alertas = MenuAlertas(self.ancho, self.alto, self.usuario)
                 return "redraw"
             elif self.boton_soporte.rect.collidepoint(evento.pos):
                 return "soporte"
