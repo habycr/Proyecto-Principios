@@ -18,7 +18,12 @@ class TimelapseViewer:
     def autenticar_drive(self):
         gauth = GoogleAuth()
         gauth.LoadClientConfigFile(str(self.secret_path))
-        gauth.LoadCredentialsFile(str(self.cred_path))   # Carga las credenciales si ya existen
+        try:
+            if self.cred_path.exists():
+                gauth.LoadCredentialsFile(str(self.cred_path))  # Carga las credenciales si ya existen
+        except Exception as e:
+            print(f"Error cargando credenciales previas {e}")
+            self.cred_path.unlink(missing_ok=True)
 
         # Si el token está vencido o no existe, pide autenticación y guarda las credenciales actualizadas
         if not gauth.credentials or gauth.access_token_expired:

@@ -4,7 +4,7 @@ from pydrive.drive import GoogleDrive
 from datetime import datetime
 from pathlib import Path
 
-ESP32_CAM_IP = "http://192.168.0.27"
+ESP32_CAM_IP = "http://192.168.107.140/"
 CAPTURE_URL = f"{ESP32_CAM_IP}/capture"
 CREDENTIAL_PATH = Path(__file__).parent/"credentials.json"
 SECRET_PATH = Path(__file__).parent/"client_secrets.json"
