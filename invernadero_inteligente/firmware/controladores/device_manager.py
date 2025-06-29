@@ -173,3 +173,4 @@ class DeviceManager:
             "alertas": alertas,
             "datos": datos
         }
+

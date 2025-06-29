@@ -56,6 +56,15 @@ class Dashboard:
         self.autocapture = False
         self.capture_thread = None
         # Variables para actualización de sensores
+        # Variables para la subida periódica de datos
+        self.ultima_subida_datos = time.time()
+        self.intervalo_subida_datos = 300  # 5 minutos
+        self.estado_techo_actual = 0  # 0 = cerrado, 1 = abierto
+
+        # Iniciar el hilo para subir datos periódicamente
+        self.hilo_subida_datos = threading.Thread(target=self._subir_datos_periodicamente, daemon=True)
+        self.hilo_subida_datos.start()
+
         self.datos_sensores = {
             "temperatura": 0.0,
             "humedad_ambiente": 0.0,
@@ -66,7 +75,7 @@ class Dashboard:
             "ultimo_update": 0
         }
         self.ultimo_update_sensores = 0
-        self.intervalo_update_sensores = 10  # Actualizar cada 10 segundos
+        self.intervalo_update_sensores = 300  # Actualizar cada 10 segundos
         self.crear_componentes()
 
     def crear_componentes(self):
@@ -240,6 +249,7 @@ class Dashboard:
                 return "redraw"
             return None
 
+
         if evento.type == pygame.MOUSEBUTTONDOWN:
             # Manejar clic en la X de la ventana de alerta PRIMERO
             if self.mostrar_alerta:
@@ -327,9 +337,15 @@ class Dashboard:
                 if datos:
                     self.datos_sensores.update(datos)
                     print("Sensores actualizados correctamente")
+
+                    # Llamar también a subida a Google Sheets inmediatamente
+                    self.subir_datos_sensores()
+                    self.ultima_subida_datos = time.time()  # Reinicia temporizador del hilo
                 else:
                     print("Error al actualizar sensores")
+
                 return "redraw"
+
             # IMPLEMENTACIÓN DEL BOTÓN DE ABONO DEL DASHBOARD 2
             elif self.boton_abono.rect.collidepoint(evento.pos):
                 if self.temporizador_activo:
@@ -352,6 +368,10 @@ class Dashboard:
             for dispositivo, boton in self.botones_dispositivos.items():
                 if boton.rect.collidepoint(evento.pos):
                     resultado = self.device_manager.controlar_dispositivo(dispositivo)
+
+                    if dispositivo == "techo":
+                        nuevo_estado = self.device_manager.obtener_estado_dispositivo("techo")
+                        self.estado_techo_actual = 1 if nuevo_estado else 0
 
                     if resultado["exito"]:
                         # Actualizar el botón con los nuevos valores
@@ -779,3 +799,90 @@ class Dashboard:
             self.datos_sensores.update(datos)
             return True
         return False
+
+    def _subir_datos_periodicamente(self):
+        while True:
+            tiempo_actual = time.time()
+            if tiempo_actual - self.ultima_subida_datos >= self.intervalo_subida_datos:
+                self.subir_datos_sensores()
+                self.ultima_subida_datos = tiempo_actual
+            time.sleep(60)  # Verifica cada 1 minuto
+
+    def subir_datos_sensores(self):
+        try:
+            datos = self.device_manager.obtener_datos_sensores_actuales()
+            if not datos:
+                print("No se pudieron obtener datos de los sensores")
+                return
+            # Verificar que tenemos un número de serie válido
+            numero_serie = self.usuario.get('numero_serie')
+            if not numero_serie:
+                print("❌ No se encontró número de serie en el usuario")
+                return False
+
+            # Obtener fecha y hora actuales con time
+            fecha = time.strftime("%d/%m/%Y")
+            hora = time.strftime("%H:%M:%S")
+
+            numero_serie = self.usuario.get('numero_serie', 'DESCONOCIDO')
+            if isinstance(numero_serie, list):
+                if numero_serie:
+                    numero_serie = numero_serie[0]
+                else:
+                    print("❌ La lista de número de serie está vacía")
+                    return False
+
+            datos_a_subir = [
+                {
+                    "Fecha": fecha,
+                    "Hora": hora,
+                    "Dispositivo": numero_serie,
+                    "TipoDato": "Temperatura",
+                    "Valor": datos.get("temperatura", 0),
+                    "EstadoTecho": self.estado_techo_actual
+                },
+                {
+                    "Fecha": fecha,
+                    "Hora": hora,
+                    "Dispositivo": numero_serie,
+                    "TipoDato": "Humedad",
+                    "Valor": datos.get("humedad_ambiente", 0),
+                    "EstadoTecho": self.estado_techo_actual
+                },
+                {
+                    "Fecha": fecha,
+                    "Hora": hora,
+                    "Dispositivo": numero_serie,
+                    "TipoDato": "Exposición a la luz",
+                    "Valor": datos.get("intensidad_luz", 0),
+                    "EstadoTecho": self.estado_techo_actual
+                },
+                {
+                    "Fecha": fecha,
+                    "Hora": hora,
+                    "Dispositivo": numero_serie,
+                    "TipoDato": "Humedad Suelo",
+                    "Valor": datos.get("humedad_suelo", 0),
+                    "EstadoTecho": self.estado_techo_actual
+                },
+                {
+                    "Fecha": fecha,
+                    "Hora": hora,
+                    "Dispositivo": numero_serie,
+                    "TipoDato": "Nivel Drenaje",
+                    "Valor": datos.get("nivel_drenaje", 0),
+                    "EstadoTecho": self.estado_techo_actual
+                }
+            ]
+            print("ℹ️ Intentando subir datos:", datos_a_subir)
+            response = APIService.subir_datos_sensores(datos_a_subir)
+
+            if response.get("status") == "success":
+                print("✅ Datos subidos correctamente a Google Sheets")
+                return True
+            else:
+                print(f"❌ Error al subir datos: {response.get('message', 'Error desconocido')}")
+                return False
+        except Exception as e:
+            print(f"❌ Error en subir_datos_sensores: {str(e)}")
+            return False
