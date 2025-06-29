@@ -248,3 +248,13 @@ class APIService:
             numero_serie: Número de serie del dispositivo
         """
         return APIService._make_request(f'/dispositivo/{numero_serie}', method='GET')
+
+    @staticmethod
+    def subir_datos_sensores(datos_sensores):
+        """
+        Sube los datos de los sensores a Google Sheets
+
+        Args:
+            datos_sensores: Lista de diccionarios con los datos a subir
+        """
+        return APIService._make_request('/data/subir_datos', datos_sensores, method='POST')

@@ -34,7 +34,7 @@ class DeviceManager:
                 }
             },
             "techo": {
-                "endpoint": "motorA",
+                "endpoint": "motores",  # Cambiado de motorA a motores según el .ino
                 "acciones": {"abrir": "adelante", "cerrar": "stop"},
                 "textos": {
                     "activar": "Abrir Techo",
@@ -102,6 +102,24 @@ class DeviceManager:
                 "nuevo_color": (255, 0, 0) if estado_actual else config.COLOR_BUTTON
             }
 
+    def actualizar_datos_sensores(self) -> dict:
+        """
+        Actualiza y obtiene los datos de todos los sensores
+
+        Returns:
+            dict: Datos actualizados de los sensores
+        """
+        return self.esp32.obtener_datos_sensores()
+
+    def obtener_datos_sensores_actuales(self) -> dict:
+        """
+        Obtiene los datos de sensores desde la cache (sin hacer petición HTTP)
+
+        Returns:
+            dict: Datos de sensores desde la cache
+        """
+        return self.esp32.obtener_datos_sensores_cache()
+
     def obtener_estado_dispositivo(self, dispositivo: str) -> bool:
         """Obtiene el estado actual de un dispositivo"""
         return self.esp32.obtener_estado_dispositivo(dispositivo)
@@ -126,3 +144,33 @@ class DeviceManager:
         for dispositivo in self.device_mappings.keys():
             if self.esp32.obtener_estado_dispositivo(dispositivo):
                 self.controlar_dispositivo(dispositivo)
+
+    def obtener_estado_sensor_critico(self) -> dict:
+        """
+        Verifica si algún sensor está en estado crítico
+
+        Returns:
+            dict: Estado de los sensores críticos
+        """
+        datos = self.obtener_datos_sensores_actuales()
+        alertas = []
+
+        # Verificar niveles críticos
+        if datos.get("nivel_drenaje", 0) <= 3:
+            alertas.append("⚠️ Nivel de drenaje bajo")
+
+        if datos.get("nivel_riego", 0) <= 3:
+            alertas.append("⚠️ Nivel de riego bajo")
+
+        if datos.get("humedad_suelo", 0) <= 3:
+            alertas.append("⚠️ Suelo muy seco")
+
+        if datos.get("intensidad_luz", 0) <= 2:
+            alertas.append("⚠️ Poca luz disponible")
+
+        return {
+            "hay_alertas": len(alertas) > 0,
+            "alertas": alertas,
+            "datos": datos
+        }
+

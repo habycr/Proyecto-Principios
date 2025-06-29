@@ -6,6 +6,7 @@ from invernadero_inteligente.frontend.config import config
 from typing import List, Dict, Optional, Union
 from datetime import datetime
 
+
 class GoogleSheetsDB:
     def __init__(self):
         """Inicializa la conexión con Google Sheets"""
