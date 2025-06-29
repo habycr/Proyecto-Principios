@@ -206,3 +206,45 @@ class APIService:
                     item["estado_techo"] = 0  # Valor por defecto si no está presente
 
         return response
+
+    # Agregar estos métodos a la clase APIService en api_service.py
+
+    @staticmethod
+    def guardar_alertas_dispositivo(datos_alertas):
+        """
+        Guarda la configuración de alertas de un dispositivo en Google Sheets
+
+        Args:
+            datos_alertas: Diccionario con la estructura:
+            {
+                'numero_serie': 'XXXX',
+                'alertas': {
+                    'temperatura': {'min': valor, 'max': valor},
+                    'humedad_ambiente': {'min': valor, 'max': valor},
+                    'humedad_suelo': {'min': valor, 'max': valor},
+                    'nivel_bomba': valor,
+                    'nivel_drenaje': valor
+                }
+            }
+        """
+        return APIService._make_request('/dispositivo/alertas', datos_alertas, method='POST')
+
+    @staticmethod
+    def obtener_alertas_dispositivo(numero_serie):
+        """
+        Obtiene la configuración de alertas de un dispositivo desde Google Sheets
+
+        Args:
+            numero_serie: Número de serie del dispositivo
+        """
+        return APIService._make_request(f'/dispositivo/{numero_serie}/alertas', method='GET')
+
+    @staticmethod
+    def obtener_dispositivo(numero_serie):
+        """
+        Obtiene la información completa de un dispositivo
+
+        Args:
+            numero_serie: Número de serie del dispositivo
+        """
+        return APIService._make_request(f'/dispositivo/{numero_serie}', method='GET')
