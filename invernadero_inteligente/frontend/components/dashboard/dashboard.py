@@ -18,6 +18,7 @@ from invernadero_inteligente.frontend.components.dashboard.alertas.menu_alertas 
 # Importar los nuevos controladores
 from invernadero_inteligente.firmware.controladores.esp32_controller import ESP32Controller
 from invernadero_inteligente.firmware.controladores.device_manager import DeviceManager
+from invernadero_inteligente.frontend.components.dashboard.notificaciones.menu_notificaciones import MenuNotificaciones
 
 
 class Dashboard:
@@ -58,8 +59,10 @@ class Dashboard:
         # Variables para actualización de sensores
         # Variables para la subida periódica de datos
         self.ultima_subida_datos = time.time()
-        self.intervalo_subida_datos = 300  # 5 minutos
+        self.intervalo_subida_datos = 300  # 30 segundos
         self.estado_techo_actual = 0  # 0 = cerrado, 1 = abierto
+        self.en_menu_notificaciones = False
+        self.menu_notificaciones = None
 
         # Iniciar el hilo para subir datos periódicamente
         self.hilo_subida_datos = threading.Thread(target=self._subir_datos_periodicamente, daemon=True)
@@ -75,7 +78,7 @@ class Dashboard:
             "ultimo_update": 0
         }
         self.ultimo_update_sensores = 0
-        self.intervalo_update_sensores = 300  # Actualizar cada 10 segundos
+        self.intervalo_update_sensores = 30  # Actualizar cada 10 segundos
         self.crear_componentes()
 
     def crear_componentes(self):
@@ -98,7 +101,15 @@ class Dashboard:
             texto="Configuración",
             color=config.COLOR_BUTTON_SECONDARY
         )
-
+        # Botón para notificaciones
+        self.boton_notificaciones = Boton(
+            x=300,
+            y=500,
+            ancho=200,
+            alto=50,
+            texto="Notificaciones",
+            color=config.COLOR_BUTTON_SECONDARY
+        )
         # Botón para capturar imagen
         self.boton_capturar = Boton(
             x=300,
@@ -249,6 +260,13 @@ class Dashboard:
                 return "redraw"
             return None
 
+        if self.en_menu_notificaciones:
+            resultado = self.menu_notificaciones.manejar_evento(evento)
+            if resultado == "volver_dashboard":
+                self.en_menu_notificaciones = False
+                return "redraw"
+            return None
+
 
         if evento.type == pygame.MOUSEBUTTONDOWN:
             # Manejar clic en la X de la ventana de alerta PRIMERO
@@ -314,6 +332,13 @@ class Dashboard:
                 self.en_menu_alertas = True
                 self.menu_alertas = MenuAlertas(self.ancho, self.alto, self.usuario)
                 return "redraw"
+            elif self.boton_notificaciones.rect.collidepoint(evento.pos):
+                self.en_menu_notificaciones = True
+                self.menu_notificaciones = MenuNotificaciones(self.ancho, self.alto, self.usuario)
+                return "redraw"
+
+
+
             elif self.boton_soporte.rect.collidepoint(evento.pos):
                 return "soporte"
             elif self.boton_graficos.rect.collidepoint(evento.pos):
@@ -602,6 +627,9 @@ class Dashboard:
         if self.en_menu_alertas:
             self.menu_alertas.dibujar(superficie)
             return
+        if self.en_menu_notificaciones:
+            self.menu_notificaciones.dibujar(superficie)
+            return
 
         # Fondo claro
         superficie.fill(config.BACKGROUND_COLOR)
@@ -628,6 +656,7 @@ class Dashboard:
         self.boton_timelapse.dibujar(superficie)
         self.boton_graficos.dibujar(superficie)
         self.boton_alertas.dibujar(superficie)
+        self.boton_notificaciones.dibujar(superficie)
 
         # Dibujar botones de dispositivos
         for boton in self.botones_dispositivos.values():
@@ -814,6 +843,7 @@ class Dashboard:
             if not datos:
                 print("No se pudieron obtener datos de los sensores")
                 return
+
             # Verificar que tenemos un número de serie válido
             numero_serie = self.usuario.get('numero_serie')
             if not numero_serie:
@@ -872,8 +902,18 @@ class Dashboard:
                     "TipoDato": "Nivel Drenaje",
                     "Valor": datos.get("nivel_drenaje", 0),
                     "EstadoTecho": self.estado_techo_actual
+                },
+                # Agregar el nuevo dato de Nivel Riego
+                {
+                    "Fecha": fecha,
+                    "Hora": hora,
+                    "Dispositivo": numero_serie,
+                    "TipoDato": "Nivel Riego",
+                    "Valor": datos.get("nivel_riego", 0),
+                    "EstadoTecho": self.estado_techo_actual
                 }
             ]
+
             print("ℹ️ Intentando subir datos:", datos_a_subir)
             response = APIService.subir_datos_sensores(datos_a_subir)
 
