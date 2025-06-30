@@ -14,10 +14,11 @@ from invernadero_inteligente.frontend.services.api_service import APIService
 from invernadero_inteligente.firmware import esp32cam_to_drive
 from invernadero_inteligente.firmware.timelapse_viewer import TimelapseViewer
 from invernadero_inteligente.frontend.components.dashboard.editar_perfil.editar_perfil import EditarPerfil
-
+from invernadero_inteligente.frontend.components.dashboard.alertas.menu_alertas import MenuAlertas
 # Importar los nuevos controladores
 from invernadero_inteligente.firmware.controladores.esp32_controller import ESP32Controller
 from invernadero_inteligente.firmware.controladores.device_manager import DeviceManager
+from invernadero_inteligente.frontend.components.dashboard.notificaciones.menu_notificaciones import MenuNotificaciones
 
 
 class Dashboard:
@@ -28,11 +29,16 @@ class Dashboard:
         self.fuente_titulo = pygame.font.Font(None, 36)
         self.fuente_normal = pygame.font.Font(None, 28)
         self.fuente_pequena = pygame.font.Font(None, 24)
+        # Obtener número de serie del usuario
+        self.numero_serie = self._obtener_numero_serie(usuario)
+
 
         # Inicializar controladores ESP32
-        self.esp32_controller = ESP32Controller("http://172.19.14.137")
+        self.esp32_controller = ESP32Controller("http://192.168.0.17")
         self.device_manager = DeviceManager(self.esp32_controller)
 
+        # Configurar luz automática al iniciar
+        self._configurar_luz_automatica()
         # Cargar la imagen
         self.imagen = Dashboard.cargar_imagen_desde_github()
 
@@ -50,11 +56,34 @@ class Dashboard:
         self.entrada_activa = "horas"
         self.editando_perfil = False
         self.editar_perfil = None
-
+        self.en_menu_alertas = False
+        self.menu_alertas = None
         # Variables para captura automática
         self.autocapture = False
         self.capture_thread = None
+        # Variables para actualización de sensores
+        # Variables para la subida periódica de datos
+        self.ultima_subida_datos = time.time()
+        self.intervalo_subida_datos = 300  # 30 segundos
+        self.estado_techo_actual = 0  # 0 = cerrado, 1 = abierto
+        self.en_menu_notificaciones = False
+        self.menu_notificaciones = None
 
+        # Iniciar el hilo para subir datos periódicamente
+        self.hilo_subida_datos = threading.Thread(target=self._subir_datos_periodicamente, daemon=True)
+        self.hilo_subida_datos.start()
+
+        self.datos_sensores = {
+            "temperatura": 0.0,
+            "humedad_ambiente": 0.0,
+            "nivel_drenaje": 0,
+            "nivel_riego": 0,
+            "intensidad_luz": 0,
+            "humedad_suelo": 0,
+            "ultimo_update": 0
+        }
+        self.ultimo_update_sensores = 0
+        self.intervalo_update_sensores = 30  # Actualizar cada 10 segundos
         self.crear_componentes()
 
     def crear_componentes(self):
@@ -77,7 +106,15 @@ class Dashboard:
             texto="Configuración",
             color=config.COLOR_BUTTON_SECONDARY
         )
-
+        # Botón para notificaciones
+        self.boton_notificaciones = Boton(
+            x=300,
+            y=500,
+            ancho=200,
+            alto=50,
+            texto="Notificaciones",
+            color=config.COLOR_BUTTON_SECONDARY
+        )
         # Botón para capturar imagen
         self.boton_capturar = Boton(
             x=300,
@@ -97,7 +134,15 @@ class Dashboard:
             texto="Ver Timelapse",
             color=config.COLOR_BUTTON_SECONDARY
         )
-
+        # Botón para actualizar sensores manualmente
+        self.boton_actualizar_sensores = Boton(
+            x=300,
+            y=430,  # Después del botón de alertas
+            ancho=200,
+            alto=50,
+            texto="Actualizar Sensores",
+            color=config.COLOR_BUTTON_SECONDARY
+        )
         # Botón para ver gráficos
         self.boton_graficos = Boton(
             x=300,
@@ -189,6 +234,16 @@ class Dashboard:
             color=config.COLOR_BUTTON_SECONDARY
         )
 
+        # Botón para alertas
+        self.boton_alertas = Boton(
+            x=300,
+            y=360,  # Posicionado después del botón de gráficos
+            ancho=200,
+            alto=50,
+            texto="Alertas",
+            color=config.COLOR_BUTTON_SECONDARY
+        )
+
     def manejar_evento(self, evento):
         if self.editando_perfil:
             resultado = self.editar_perfil.manejar_evento(evento)
@@ -200,6 +255,23 @@ class Dashboard:
                 self.usuario = self.editar_perfil.obtener_datos_actualizados()
                 return "perfil_actualizado"
             return None
+
+        if self.en_menu_alertas:
+            resultado = self.menu_alertas.manejar_evento(evento)
+            if resultado == "volver_dashboard":
+                self.en_menu_alertas = False
+                return "redraw"
+            elif resultado == "redraw":
+                return "redraw"
+            return None
+
+        if self.en_menu_notificaciones:
+            resultado = self.menu_notificaciones.manejar_evento(evento)
+            if resultado == "volver_dashboard":
+                self.en_menu_notificaciones = False
+                return "redraw"
+            return None
+
 
         if evento.type == pygame.MOUSEBUTTONDOWN:
             # Manejar clic en la X de la ventana de alerta PRIMERO
@@ -261,6 +333,18 @@ class Dashboard:
                 return "logout"
             elif self.boton_configuracion.rect.collidepoint(evento.pos):
                 return "configuracion"
+            elif self.boton_alertas.rect.collidepoint(evento.pos):
+                self.en_menu_alertas = True
+                self.menu_alertas = MenuAlertas(self.ancho, self.alto, self.usuario)
+                return "redraw"
+            elif self.boton_notificaciones.rect.collidepoint(evento.pos):
+                self.en_menu_notificaciones = True
+                self.menu_notificaciones = MenuNotificaciones(self.ancho, self.alto, self.usuario, self.device_manager)
+
+                return "redraw"
+
+
+
             elif self.boton_soporte.rect.collidepoint(evento.pos):
                 return "soporte"
             elif self.boton_graficos.rect.collidepoint(evento.pos):
@@ -278,6 +362,20 @@ class Dashboard:
             elif self.boton_timelapse.rect.collidepoint(evento.pos):
                 print("Timelapse presionado")
                 self.ver_timelapse()
+            elif self.boton_actualizar_sensores.rect.collidepoint(evento.pos):
+                print("Actualizando datos de sensores...")
+                datos = self.device_manager.actualizar_datos_sensores()
+                if datos:
+                    self.datos_sensores.update(datos)
+                    print("Sensores actualizados correctamente")
+
+                    # Llamar también a subida a Google Sheets inmediatamente
+                    self.subir_datos_sensores()
+                    self.ultima_subida_datos = time.time()  # Reinicia temporizador del hilo
+                else:
+                    print("Error al actualizar sensores")
+
+                return "redraw"
 
             # IMPLEMENTACIÓN DEL BOTÓN DE ABONO DEL DASHBOARD 2
             elif self.boton_abono.rect.collidepoint(evento.pos):
@@ -301,6 +399,10 @@ class Dashboard:
             for dispositivo, boton in self.botones_dispositivos.items():
                 if boton.rect.collidepoint(evento.pos):
                     resultado = self.device_manager.controlar_dispositivo(dispositivo)
+
+                    if dispositivo == "techo":
+                        nuevo_estado = self.device_manager.obtener_estado_dispositivo("techo")
+                        self.estado_techo_actual = 1 if nuevo_estado else 0
 
                     if resultado["exito"]:
                         # Actualizar el botón con los nuevos valores
@@ -350,6 +452,15 @@ class Dashboard:
         return None
 
     def actualizar(self):
+
+        # Actualizar sensores automáticamente
+        tiempo_actual = time.time()
+        if tiempo_actual - self.ultimo_update_sensores > self.intervalo_update_sensores:
+            datos_nuevos = self.device_manager.actualizar_datos_sensores()
+            if datos_nuevos:
+                self.datos_sensores.update(datos_nuevos)
+                self.ultimo_update_sensores = tiempo_actual
+                return "redraw"
         # Verificar si el temporizador ha terminado - MEJORADO DEL DASHBOARD 2
         if self.temporizador_activo:
             tiempo_transcurrido = time.time() - self.tiempo_inicio_temporizador
@@ -417,6 +528,90 @@ class Dashboard:
         instruccion = self.fuente_pequena.render("Haz clic en la X para cerrar", True, (100, 100, 100))
         superficie.blit(instruccion, (x + (ancho_popup - instruccion.get_width()) // 2, y + 160))
 
+    def dibujar_panel_sensores(self, superficie):
+        """Dibuja el panel de información de sensores"""
+        # Panel de sensores en la parte derecha
+        panel_x = self.ancho - 280
+        panel_y = 260
+        panel_ancho = 260
+        panel_alto = 280
+
+        # Fondo del panel
+        pygame.draw.rect(superficie, (245, 245, 245),
+                         (panel_x, panel_y, panel_ancho, panel_alto))
+        pygame.draw.rect(superficie, (200, 200, 200),
+                         (panel_x, panel_y, panel_ancho, panel_alto), 2)
+
+        # Título del panel
+        titulo = self.fuente_normal.render("Estado de Sensores", True, (0, 0, 0))
+        superficie.blit(titulo, (panel_x + 10, panel_y + 10))
+
+        # Obtener datos actuales
+        datos = self.device_manager.obtener_datos_sensores_actuales()
+
+        # Lista de sensores con sus unidades y colores
+        sensores_info = [
+            ("Temperatura", f"{datos.get('temperatura', 0):.1f}°C", (255, 100, 100)),
+            ("Humedad Ambiente", f"{datos.get('humedad_ambiente', 0):.1f}%", (100, 150, 255)),
+            ("Nivel Drenaje", f"{datos.get('nivel_drenaje', 0)}/10", (150, 100, 255)),
+            ("Nivel Riego", f"{datos.get('nivel_riego', 0)}/10", (100, 200, 255)),
+            ("Intensidad Luz", f"{datos.get('intensidad_luz', 0)}/10", (255, 200, 100)),
+            ("Humedad Suelo", f"{datos.get('humedad_suelo', 0)}/10", (150, 200, 100))
+        ]
+
+        # Dibujar cada sensor
+        for i, (nombre, valor, color) in enumerate(sensores_info):
+            y_pos = panel_y + 45 + i * 35
+
+            # Nombre del sensor
+            texto_nombre = self.fuente_pequena.render(nombre + ":", True, (0, 0, 0))
+            superficie.blit(texto_nombre, (panel_x + 10, y_pos))
+
+            # Valor del sensor con color
+            texto_valor = self.fuente_pequena.render(valor, True, color)
+            superficie.blit(texto_valor, (panel_x + 160, y_pos))
+
+            # Indicador visual (barra o círculo según el tipo)
+            if "Nivel" in nombre or "Intensidad" in nombre or "Humedad Suelo" in nombre:
+                # Barra de progreso para valores de 0-10
+                barra_x = panel_x + 10
+                barra_y = y_pos + 18
+                barra_ancho = 200
+                barra_alto = 8
+
+                # Fondo de la barra
+                pygame.draw.rect(superficie, (220, 220, 220),
+                                 (barra_x, barra_y, barra_ancho, barra_alto))
+
+                # Barra de progreso
+                if "drenaje" in nombre.lower():
+                    progreso = datos.get('nivel_drenaje', 0) / 10
+                elif "riego" in nombre.lower():
+                    progreso = datos.get('nivel_riego', 0) / 10
+                elif "luz" in nombre.lower():
+                    progreso = datos.get('intensidad_luz', 0) / 10
+                elif "suelo" in nombre.lower():
+                    progreso = datos.get('humedad_suelo', 0) / 10
+                else:
+                    progreso = 0
+
+                pygame.draw.rect(superficie, color,
+                                 (barra_x, barra_y, int(barra_ancho * progreso), barra_alto))
+
+        # Tiempo de última actualización
+        if datos.get('ultimo_update', 0) > 0:
+            tiempo_transcurrido = time.time() - datos['ultimo_update']
+            if tiempo_transcurrido < 60:
+                tiempo_texto = f"Hace {int(tiempo_transcurrido)}s"
+            else:
+                tiempo_texto = f"Hace {int(tiempo_transcurrido // 60)}m"
+        else:
+            tiempo_texto = "Sin datos"
+
+        texto_tiempo = pygame.font.Font(None, 20).render(
+            f"Actualizado: {tiempo_texto}", True, (100, 100, 100))
+        superficie.blit(texto_tiempo, (panel_x + 10, panel_y + panel_alto - 20))
+
     @staticmethod
     def cargar_imagen_desde_github():
         url = "https://raw.githubusercontent.com/habycr/Proyecto-Principios/6b91ab4a49c35c8810bff80b7b1b537ab67ffff6/invernadero_inteligente/frontend/components/usuarios/registro/elementos/logo/logo.png"
@@ -433,6 +628,13 @@ class Dashboard:
         # Si estamos editando perfil, solo mostrar esa vista
         if self.editando_perfil:
             self.editar_perfil.dibujar(superficie)
+            return
+
+        if self.en_menu_alertas:
+            self.menu_alertas.dibujar(superficie)
+            return
+        if self.en_menu_notificaciones:
+            self.menu_notificaciones.dibujar(superficie)
             return
 
         # Fondo claro
@@ -459,6 +661,8 @@ class Dashboard:
         self.boton_capturar.dibujar(superficie)
         self.boton_timelapse.dibujar(superficie)
         self.boton_graficos.dibujar(superficie)
+        self.boton_alertas.dibujar(superficie)
+        self.boton_notificaciones.dibujar(superficie)
 
         # Dibujar botones de dispositivos
         for boton in self.botones_dispositivos.values():
@@ -561,7 +765,11 @@ class Dashboard:
         # DIBUJAR POP-UP DE ABONO (DEBE SER LO ÚLTIMO PARA ESTAR ENCIMA)
         if self.mostrar_alerta:
             self.dibujar_popup_abono(superficie)
+            # Dibujar panel de sensores
+        self.dibujar_panel_sensores(superficie)
 
+        # Dibujar botón de actualizar sensores
+        self.boton_actualizar_sensores.dibujar(superficie)
         # Mensaje inferior
         mensaje = pygame.font.Font(None, 24).render(
             "Esta es una vista básica del dashboard",
@@ -614,3 +822,162 @@ class Dashboard:
         for dispositivo, boton in self.botones_dispositivos.items():
             boton.texto = self.device_manager.obtener_texto_boton(dispositivo)
             boton.color = self.device_manager.obtener_color_boton(dispositivo)
+
+    def obtener_datos_sensores_actuales(self) -> dict:
+        """Obtiene los datos actuales de sensores desde el device_manager"""
+        return self.device_manager.obtener_datos_sensores_actuales()
+
+    def forzar_actualizacion_sensores(self):
+        """Fuerza una actualización inmediata de los sensores"""
+        datos = self.device_manager.actualizar_datos_sensores()
+        if datos:
+            self.datos_sensores.update(datos)
+            return True
+        return False
+
+    def _subir_datos_periodicamente(self):
+        while True:
+            tiempo_actual = time.time()
+            if tiempo_actual - self.ultima_subida_datos >= self.intervalo_subida_datos:
+                self.subir_datos_sensores()
+                self.ultima_subida_datos = tiempo_actual
+            time.sleep(60)  # Verifica cada 1 minuto
+
+    def subir_datos_sensores(self):
+        try:
+            datos = self.device_manager.obtener_datos_sensores_actuales()
+            if not datos:
+                print("No se pudieron obtener datos de los sensores")
+                return
+
+            # Verificar que tenemos un número de serie válido
+            numero_serie = self.usuario.get('numero_serie')
+            if not numero_serie:
+                print("❌ No se encontró número de serie en el usuario")
+                return False
+
+            # Obtener fecha y hora actuales con time
+            fecha = time.strftime("%d/%m/%Y")
+            hora = time.strftime("%H:%M:%S")
+
+            numero_serie = self.usuario.get('numero_serie', 'DESCONOCIDO')
+            if isinstance(numero_serie, list):
+                if numero_serie:
+                    numero_serie = numero_serie[0]
+                else:
+                    print("❌ La lista de número de serie está vacía")
+                    return False
+
+            datos_a_subir = [
+                {
+                    "Fecha": fecha,
+                    "Hora": hora,
+                    "Dispositivo": numero_serie,
+                    "TipoDato": "Temperatura",
+                    "Valor": datos.get("temperatura", 0),
+                    "EstadoTecho": self.estado_techo_actual
+                },
+                {
+                    "Fecha": fecha,
+                    "Hora": hora,
+                    "Dispositivo": numero_serie,
+                    "TipoDato": "Humedad",
+                    "Valor": datos.get("humedad_ambiente", 0),
+                    "EstadoTecho": self.estado_techo_actual
+                },
+                {
+                    "Fecha": fecha,
+                    "Hora": hora,
+                    "Dispositivo": numero_serie,
+                    "TipoDato": "Exposición a la luz",
+                    "Valor": datos.get("intensidad_luz", 0),
+                    "EstadoTecho": self.estado_techo_actual
+                },
+                {
+                    "Fecha": fecha,
+                    "Hora": hora,
+                    "Dispositivo": numero_serie,
+                    "TipoDato": "Humedad Suelo",
+                    "Valor": datos.get("humedad_suelo", 0),
+                    "EstadoTecho": self.estado_techo_actual
+                },
+                {
+                    "Fecha": fecha,
+                    "Hora": hora,
+                    "Dispositivo": numero_serie,
+                    "TipoDato": "Nivel Drenaje",
+                    "Valor": datos.get("nivel_drenaje", 0),
+                    "EstadoTecho": self.estado_techo_actual
+                },
+                # Agregar el nuevo dato de Nivel Riego
+                {
+                    "Fecha": fecha,
+                    "Hora": hora,
+                    "Dispositivo": numero_serie,
+                    "TipoDato": "Nivel Riego",
+                    "Valor": datos.get("nivel_riego", 0),
+                    "EstadoTecho": self.estado_techo_actual
+                }
+            ]
+
+            print("ℹ️ Intentando subir datos:", datos_a_subir)
+            response = APIService.subir_datos_sensores(datos_a_subir)
+
+            if response.get("status") == "success":
+                print("✅ Datos subidos correctamente a Google Sheets")
+                return True
+            else:
+                print(f"❌ Error al subir datos: {response.get('message', 'Error desconocido')}")
+                return False
+        except Exception as e:
+            print(f"❌ Error en subir_datos_sensores: {str(e)}")
+            return False
+
+    def _obtener_numero_serie(self, usuario):
+        """Obtiene el número de serie del usuario"""
+        numero_serie = usuario.get('numero_serie')
+        if isinstance(numero_serie, list) and numero_serie:
+            return numero_serie[0]
+        return numero_serie if numero_serie else None
+
+    def _configurar_luz_automatica(self):
+        """Configura el control automático de la luz"""
+        if not self.numero_serie:
+            print("❌ No se pudo configurar luz automática: número de serie no disponible")
+            return
+
+        try:
+            print(f"🔍 Obteniendo horario para dispositivo: {self.numero_serie}")
+            response = APIService.obtener_horario_luz(self.numero_serie)
+
+            if not response:
+                print("❌ No se recibió respuesta del servidor")
+                return
+
+            print(f"📡 Respuesta del servidor: {response}")
+
+            if response.get('status') != 'success':
+                error_msg = response.get('message', 'Error desconocido')
+                print(f"❌ Error en la respuesta: {error_msg}")
+                return
+
+            horario = response.get('data', {})
+            inicio = horario.get('inicio')
+            fin = horario.get('fin')
+
+            if not inicio or not fin:
+                print("❌ Horario incompleto en la respuesta")
+                return
+
+            print(f"🕒 Configurando luz automática: {inicio} - {fin}")
+            self.device_manager.configurar_luz_automatica({
+                'inicio': inicio,
+                'fin': fin
+            })
+
+            # Verificar estado inmediatamente
+            self.device_manager.verificar_estado_luz()
+            self.device_manager.iniciar_verificacion_periodica()
+
+        except Exception as e:
+            print(f"❌ Error en _configurar_luz_automatica: {str(e)}")

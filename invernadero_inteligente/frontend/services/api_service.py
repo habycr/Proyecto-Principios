@@ -137,7 +137,6 @@ class APIService:
     @staticmethod
     def actualizar_perfil(email, datos_actualizados):
         return APIService._make_request(f"/usuario/{email}", datos_actualizados, method='PUT')
-
     @staticmethod
     def obtener_usuario(email):
         """Obtiene la información de un usuario por su email"""
@@ -207,3 +206,91 @@ class APIService:
                     item["estado_techo"] = 0  # Valor por defecto si no está presente
 
         return response
+
+    # Agregar estos métodos a la clase APIService en api_service.py
+
+    @staticmethod
+    def guardar_alertas_dispositivo(datos_alertas):
+        """
+        Guarda la configuración de alertas de un dispositivo en Google Sheets
+
+        Args:
+            datos_alertas: Diccionario con la estructura:
+            {
+                'numero_serie': 'XXXX',
+                'alertas': {
+                    'temperatura': {'min': valor, 'max': valor},
+                    'humedad_ambiente': {'min': valor, 'max': valor},
+                    'humedad_suelo': {'min': valor, 'max': valor},
+                    'nivel_bomba': valor,
+                    'nivel_drenaje': valor
+                }
+            }
+        """
+        return APIService._make_request('/dispositivo/alertas', datos_alertas, method='POST')
+
+    @staticmethod
+    def obtener_alertas_dispositivo(numero_serie):
+        """
+        Obtiene la configuración de alertas de un dispositivo desde Google Sheets
+
+        Args:
+            numero_serie: Número de serie del dispositivo
+        """
+        return APIService._make_request(f'/dispositivo/{numero_serie}/alertas', method='GET')
+
+    @staticmethod
+    def obtener_dispositivo(numero_serie):
+        """
+        Obtiene la información completa de un dispositivo
+
+        Args:
+            numero_serie: Número de serie del dispositivo
+        """
+        return APIService._make_request(f'/dispositivo/{numero_serie}', method='GET')
+
+    @staticmethod
+    def subir_datos_sensores(datos_sensores):
+        """
+        Sube los datos de los sensores a Google Sheets
+
+        Args:
+            datos_sensores: Lista de diccionarios con los datos a subir
+        """
+        return APIService._make_request('/data/subir_datos', datos_sensores, method='POST')
+
+    @staticmethod
+    def obtener_horario_luz(numero_serie: str) -> dict:
+        """
+        Obtiene el horario de luz artificial para un dispositivo
+
+        Returns:
+            dict: {
+                'status': 'success'|'error',
+                'data': {'inicio': 'HH:MM:SS', 'fin': 'HH:MM:SS'},
+                'message': str (opcional)
+            }
+        """
+        try:
+            print(f"🌐 Solicitando horario para {numero_serie}")
+            response = APIService._make_request(
+                f'/dispositivo/{numero_serie}/horario_luz',
+                method='GET'
+            )
+
+            if not response:
+                print("🌐 No se recibió respuesta del servidor")
+                return {
+                    'status': 'error',
+                    'message': 'No response from server'
+                }
+
+            print(f"🌐 Respuesta cruda: {response}")
+            return response
+
+        except Exception as e:
+            print(f"❌ Error en obtener_horario_luz: {str(e)}")
+            return {
+                'status': 'error',
+                'message': str(e)
+            }

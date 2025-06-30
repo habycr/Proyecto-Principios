@@ -3,7 +3,7 @@ from models.data import DataPoint
 from invernadero_inteligente.backend.utils.logger import log
 from datetime import datetime, timedelta
 from services.chart_service import ChartService
-
+from services.google_sheets import GoogleSheetsDB
 data_bp = Blueprint('data', __name__)
 
 
@@ -198,4 +198,48 @@ def get_sheet_data():
         return jsonify({
             "status": "error",
             "message": "Error al obtener datos de la hoja"
+        }), 500
+
+
+@data_bp.route('/subir_datos', methods=['POST'])
+def subir_datos():
+    try:
+        datos = request.get_json()
+        print("Datos recibidos para subir:", datos)  # Log de depuración
+        if not datos or not isinstance(datos, list):
+            print("Error: Datos no válidos o no es una lista")
+            return jsonify({
+                "status": "error",
+                "message": "Datos no válidos"
+            }), 400
+
+        # Usar GoogleSheetsDB para subir los datos
+        db = GoogleSheetsDB()
+        worksheet = db.get_worksheet("Datos")
+
+        # Preparar datos para subir (convertir a lista de listas)
+        datos_a_subir = []
+        for registro in datos:
+            datos_a_subir.append([
+                registro.get("Fecha", ""),
+                registro.get("Hora", ""),
+                registro.get("Dispositivo", ""),
+                registro.get("TipoDato", ""),
+                registro.get("Valor", ""),
+                registro.get("EstadoTecho", 0)
+            ])
+
+        # Subir datos en lote
+        worksheet.append_rows(datos_a_subir)
+
+        return jsonify({
+            "status": "success",
+            "message": f"Datos subidos correctamente ({len(datos_a_subir)} registros)"
+        })
+
+    except Exception as e:
+        log(f"Error en /subir_datos: {str(e)}", "error")
+        return jsonify({
+            "status": "error",
+            "message": "Error al subir datos"
         }), 500
