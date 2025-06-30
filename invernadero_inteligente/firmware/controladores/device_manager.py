@@ -1,8 +1,8 @@
 # frontend/components/dashboard/esp32/device_manager.py
 from .esp32_controller import ESP32Controller
 from invernadero_inteligente.frontend.config import config
-
-
+import time
+import threading
 class DeviceManager:
     """Manejador específico para controlar dispositivos del invernadero"""
 
@@ -42,6 +42,8 @@ class DeviceManager:
                 }
             }
         }
+        self.horario_luz = {'inicio': None, 'fin': None}
+        self.verificando_luz = False
 
     def controlar_dispositivo(self, dispositivo: str) -> dict:
         """
@@ -174,3 +176,46 @@ class DeviceManager:
             "datos": datos
         }
 
+    def configurar_luz_automatica(self, horario: dict):
+        """Configura el horario para control automático de luz"""
+        self.horario_luz = horario
+        self.verificar_estado_luz()
+
+    def verificar_estado_luz(self):
+        """Verifica si la luz debe estar encendida según el horario"""
+        if not self.horario_luz['inicio'] or not self.horario_luz['fin']:
+            print("Horario de luz no configurado correctamente")
+            return
+
+        hora_actual = time.strftime("%H:%M:%S")
+        inicio = self.horario_luz['inicio']
+        fin = self.horario_luz['fin']
+
+        print(f"Verificando luz - Hora actual: {hora_actual}, Rango: {inicio} a {fin}")
+
+        # Si estamos dentro del horario y la luz está apagada
+        if inicio <= hora_actual < fin:
+            if not self.esp32.obtener_estado_dispositivo("uv"):
+                print("Encendiendo luz artificial (dentro del horario)")
+                self.controlar_dispositivo("uv")
+        # Si estamos fuera del horario y la luz está encendida
+        elif (hora_actual < inicio or hora_actual >= fin):
+            if self.esp32.obtener_estado_dispositivo("uv"):
+                print("Apagando luz artificial (fuera del horario)")
+                self.controlar_dispositivo("uv")
+
+    def iniciar_verificacion_periodica(self, intervalo=60):
+        """Inicia un hilo para verificar periódicamente el estado de la luz"""
+        if not self.verificando_luz:
+            self.verificando_luz = True
+            threading.Thread(
+                target=self._hilo_verificacion_luz,
+                args=(intervalo,),
+                daemon=True
+            ).start()
+
+    def _hilo_verificacion_luz(self, intervalo):
+        """Hilo que verifica periódicamente el estado de la luz"""
+        while self.verificando_luz:
+            self.verificar_estado_luz()
+            time.sleep(intervalo)

@@ -258,3 +258,39 @@ class APIService:
             datos_sensores: Lista de diccionarios con los datos a subir
         """
         return APIService._make_request('/data/subir_datos', datos_sensores, method='POST')
+
+    @staticmethod
+    def obtener_horario_luz(numero_serie: str) -> dict:
+        """
+        Obtiene el horario de luz artificial para un dispositivo
+
+        Returns:
+            dict: {
+                'status': 'success'|'error',
+                'data': {'inicio': 'HH:MM:SS', 'fin': 'HH:MM:SS'},
+                'message': str (opcional)
+            }
+        """
+        try:
+            print(f"🌐 Solicitando horario para {numero_serie}")
+            response = APIService._make_request(
+                f'/dispositivo/{numero_serie}/horario_luz',
+                method='GET'
+            )
+
+            if not response:
+                print("🌐 No se recibió respuesta del servidor")
+                return {
+                    'status': 'error',
+                    'message': 'No response from server'
+                }
+
+            print(f"🌐 Respuesta cruda: {response}")
+            return response
+
+        except Exception as e:
+            print(f"❌ Error en obtener_horario_luz: {str(e)}")
+            return {
+                'status': 'error',
+                'message': str(e)
+            }

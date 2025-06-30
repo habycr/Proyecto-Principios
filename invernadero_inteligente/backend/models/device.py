@@ -82,14 +82,20 @@ class Device:
 
     @staticmethod
     def obtener_por_serie(serial_number):
-        db = GoogleSheetsDB()
-        worksheet = db.get_worksheet("Dispositivos")
-        records = worksheet.get_all_records()
+        """Obtiene todos los datos de un dispositivo por su número de serie"""
+        try:
+            # Conexión con Google Sheets
+            sheet = GoogleSheetsDB().get_worksheet("Dispositivos")
+            records = sheet.get_all_records()
 
-        for dispositivo in records:
-            if str(dispositivo['Número de Serie']).strip() == str(serial_number).strip():
-                return dispositivo
-        return None
+            for dispositivo in records:
+                if dispositivo['Número de Serie'] == serial_number:
+                    return dispositivo
+
+            return None
+        except Exception as e:
+            print(f"Error obteniendo dispositivo: {e}")
+            return None
 
     @staticmethod
     def actualizar_alertas(serial_number, alertas_config):
