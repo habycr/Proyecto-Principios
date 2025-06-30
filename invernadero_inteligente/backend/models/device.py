@@ -162,6 +162,10 @@ class Device:
 
     @staticmethod
     def obtener_alertas(serial_number):
+        """
+        Obtiene la configuración de alertas de un dispositivo desde Google Sheets
+        Maneja correctamente valores nulos y vacíos
+        """
         db = GoogleSheetsDB()
         try:
             worksheet = db.get_worksheet("Dispositivos")
@@ -171,26 +175,58 @@ class Device:
                 if str(dispositivo['Número de Serie']).strip() == str(serial_number).strip():
                     alertas_config = {}
 
-                    alertas_config['temperatura'] = {
-                        'min': dispositivo.get('Alerta_Temperatura_min'),
-                        'max': dispositivo.get('Alerta_Temperatura_max')
-                    }
+                    # Función auxiliar para limpiar valores
+                    def limpiar_valor(valor):
+                        if valor in [None, '', '0', 0]:
+                            return None
+                        try:
+                            return float(valor)
+                        except (ValueError, TypeError):
+                            return None
 
-                    alertas_config['humedad_suelo'] = {
-                        'min': dispositivo.get('Alerta_Humedad_Suelo_min'),
-                        'max': dispositivo.get('Alerta_Humedad_Suelo_max')
-                    }
+                    # Configurar alertas de temperatura
+                    temp_min = limpiar_valor(dispositivo.get('Alerta_Temperatura_min'))
+                    temp_max = limpiar_valor(dispositivo.get('Alerta_Temperatura_max'))
+                    if temp_min is not None or temp_max is not None:
+                        alertas_config['temperatura'] = {
+                            'min': temp_min,
+                            'max': temp_max
+                        }
 
-                    alertas_config['humedad_ambiente'] = {
-                        'min': dispositivo.get('Alerta_Humedad_Ambiente_min'),
-                        'max': dispositivo.get('Alerta_Humedad_Ambiente_max')
-                    }
+                    # Configurar alertas de humedad del suelo
+                    hum_suelo_min = limpiar_valor(dispositivo.get('Alerta_Humedad_Suelo_min'))
+                    hum_suelo_max = limpiar_valor(dispositivo.get('Alerta_Humedad_Suelo_max'))
+                    if hum_suelo_min is not None or hum_suelo_max is not None:
+                        alertas_config['humedad_suelo'] = {
+                            'min': hum_suelo_min,
+                            'max': hum_suelo_max
+                        }
 
-                    alertas_config['nivel_drenaje'] = dispositivo.get('Alerta_Nivel_Agua_Drenaje')
-                    alertas_config['nivel_bomba'] = dispositivo.get('Alerta_Nivel_Agua_Bomba')
+                    # Configurar alertas de humedad ambiente
+                    hum_amb_min = limpiar_valor(dispositivo.get('Alerta_Humedad_Ambiente_min'))
+                    hum_amb_max = limpiar_valor(dispositivo.get('Alerta_Humedad_Ambiente_max'))
+                    if hum_amb_min is not None or hum_amb_max is not None:
+                        alertas_config['humedad_ambiente'] = {
+                            'min': hum_amb_min,
+                            'max': hum_amb_max
+                        }
 
+                    # Configurar alertas de nivel de drenaje
+                    nivel_drenaje = limpiar_valor(dispositivo.get('Alerta_Nivel_Agua_Drenaje'))
+                    if nivel_drenaje is not None:
+                        alertas_config['nivel_drenaje'] = nivel_drenaje
+
+                    # Configurar alertas de nivel de bomba
+                    nivel_bomba = limpiar_valor(dispositivo.get('Alerta_Nivel_Agua_Bomba'))
+                    if nivel_bomba is not None:
+                        alertas_config['nivel_bomba'] = nivel_bomba
+
+                    print(f"🔍 Alertas obtenidas para {serial_number}: {alertas_config}")
                     return alertas_config
+
+            print(f"❌ Dispositivo {serial_number} no encontrado")
             return None
+
         except Exception as e:
-            print(f"Error obteniendo alertas del dispositivo: {e}")
+            print(f"❌ Error obteniendo alertas del dispositivo: {e}")
             return None
