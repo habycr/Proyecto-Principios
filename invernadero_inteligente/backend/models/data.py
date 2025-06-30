@@ -1,211 +1,116 @@
-from datetime import datetime
 from invernadero_inteligente.backend.services.google_sheets import GoogleSheetsDB
 
-
 class DataPoint:
-    def __init__(self, timestamp, dispositivo, tipo_dato, valor, estado_techo=0):
-        if isinstance(timestamp, str):
-            try:
-                self.timestamp = datetime.strptime(timestamp, "%d/%m/%Y %H:%M:%S")
-            except:
-                self.timestamp = datetime.now()
-        else:
-            self.timestamp = timestamp
+    def __init__(self, fecha, hora, dispositivo, tipo_dato, valor, estado_techo):
+        self.fecha = fecha
+        self.hora = hora
         self.dispositivo = dispositivo
         self.tipo_dato = tipo_dato
-        self.valor = float(valor) if valor else 0.0
-        self.estado_techo = int(estado_techo) if estado_techo else 0
-
-    @classmethod
-    def get_by_device_and_type(cls, dispositivo, tipo_dato, limit=1000, fecha_inicio=None, fecha_fin=None):
-        """
-        Obtiene datos históricos para un dispositivo y tipo específico con filtro opcional de fechas
-
-        Args:
-            dispositivo: Número de serie del dispositivo
-            tipo_dato: Tipo de sensor
-            limit: Límite de registros a retornar
-            fecha_inicio: Fecha de inicio en formato "DD/MM/YYYY" (opcional)
-            fecha_fin: Fecha de fin en formato "DD/MM/YYYY" (opcional)
-        """
-        db = GoogleSheetsDB()
-        try:
-            worksheet = db.get_worksheet("Datos")
-            records = worksheet.get_all_records()
-
-            # Convertir fechas de filtro a objetos datetime si se proporcionan
-            fecha_inicio_dt = None
-            fecha_fin_dt = None
-
-            if fecha_inicio:
-                try:
-                    fecha_inicio_dt = datetime.strptime(fecha_inicio, "%d/%m/%Y")
-                    print(f"Filtrando desde: {fecha_inicio_dt}")
-                except ValueError as e:
-                    print(f"Error parseando fecha_inicio '{fecha_inicio}': {e}")
-
-            if fecha_fin:
-                try:
-                    # Agregar 23:59:59 para incluir todo el día final
-                    fecha_fin_dt = datetime.strptime(fecha_fin, "%d/%m/%Y").replace(hour=23, minute=59, second=59)
-                    print(f"Filtrando hasta: {fecha_fin_dt}")
-                except ValueError as e:
-                    print(f"Error parseando fecha_fin '{fecha_fin}': {e}")
-
-            filtered_data = []
-            registros_procesados = 0
-            registros_filtrados = 0
-
-            for record in records:
-                registros_procesados += 1
-
-                # Filtrar por dispositivo y tipo de dato
-                if (
-                        str(record.get("Dispositivo", "")).strip() == dispositivo
-                        and str(record.get("TipoDato", "")).strip().lower() == tipo_dato.lower()
-                ):
-                    fecha = record.get("Fecha")
-                    hora = record.get("Hora")
-
-                    if fecha and hora:
-                        timestamp_str = f"{fecha} {hora}"
-                        try:
-                            # Crear el DataPoint temporalmente para obtener el timestamp
-                            temp_timestamp = datetime.strptime(timestamp_str, "%d/%m/%Y %H:%M:%S")
-
-                            # Aplicar filtros de fecha si se especificaron
-                            incluir_registro = True
-
-                            if fecha_inicio_dt and temp_timestamp < fecha_inicio_dt:
-                                incluir_registro = False
-
-                            if fecha_fin_dt and temp_timestamp > fecha_fin_dt:
-                                incluir_registro = False
-
-                            if incluir_registro:
-                                dp = DataPoint(
-                                    timestamp=timestamp_str,
-                                    dispositivo=record.get("Dispositivo"),
-                                    tipo_dato=record.get("TipoDato"),
-                                    valor=record.get("Valor"),
-                                    estado_techo=record.get("EstadoTecho", 0)
-                                )
-                                filtered_data.append(dp)
-                                registros_filtrados += 1
-
-                        except Exception as e:
-                            print(f"Error procesando registro: {e}")
-
-            print(f"Registros procesados: {registros_procesados}")
-            print(f"Registros que coinciden con filtros: {registros_filtrados}")
-
-            # Ordenar por fecha (más recientes primero)
-            filtered_data.sort(key=lambda x: x.timestamp, reverse=True)
-
-            # Aplicar límite
-            result = filtered_data[:limit]
-
-            print(f"Registros retornados después del límite: {len(result)}")
-
-            if result:
-                print(f"Rango de fechas en resultado: {result[-1].timestamp} a {result[0].timestamp}")
-
-            return result
-
-        except Exception as e:
-            print(f"Error obteniendo datos: {e}")
-            return []
-
-    @classmethod
-    def get_filtered_data(cls, dispositivo=None, tipo_dato=None, fecha_inicio=None, fecha_fin=None, limit=1000):
-        """
-        Método más genérico para obtener datos con filtros opcionales
-
-        Args:
-            dispositivo: Número de serie del dispositivo (opcional)
-            tipo_dato: Tipo de sensor (opcional)
-            fecha_inicio: Fecha de inicio en formato "DD/MM/YYYY" (opcional)
-            fecha_fin: Fecha de fin en formato "DD/MM/YYYY" (opcional)
-            limit: Límite de registros a retornar
-        """
-        db = GoogleSheetsDB()
-        try:
-            worksheet = db.get_worksheet("Datos")
-            records = worksheet.get_all_records()
-
-            # Convertir fechas de filtro a objetos datetime si se proporcionan
-            fecha_inicio_dt = None
-            fecha_fin_dt = None
-
-            if fecha_inicio:
-                try:
-                    fecha_inicio_dt = datetime.strptime(fecha_inicio, "%d/%m/%Y")
-                except ValueError as e:
-                    print(f"Error parseando fecha_inicio '{fecha_inicio}': {e}")
-
-            if fecha_fin:
-                try:
-                    fecha_fin_dt = datetime.strptime(fecha_fin, "%d/%m/%Y").replace(hour=23, minute=59, second=59)
-                except ValueError as e:
-                    print(f"Error parseando fecha_fin '{fecha_fin}': {e}")
-
-            filtered_data = []
-
-            for record in records:
-                # Aplicar filtros
-                incluir_registro = True
-
-                # Filtrar por dispositivo si se especifica
-                if dispositivo and str(record.get("Dispositivo", "")).strip() != dispositivo:
-                    incluir_registro = False
-
-                # Filtrar por tipo de dato si se especifica
-                if tipo_dato and str(record.get("TipoDato", "")).strip().lower() != tipo_dato.lower():
-                    incluir_registro = False
-
-                if incluir_registro:
-                    fecha = record.get("Fecha")
-                    hora = record.get("Hora")
-
-                    if fecha and hora:
-                        timestamp_str = f"{fecha} {hora}"
-                        try:
-                            temp_timestamp = datetime.strptime(timestamp_str, "%d/%m/%Y %H:%M:%S")
-
-                            # Aplicar filtros de fecha
-                            if fecha_inicio_dt and temp_timestamp < fecha_inicio_dt:
-                                incluir_registro = False
-
-                            if fecha_fin_dt and temp_timestamp > fecha_fin_dt:
-                                incluir_registro = False
-
-                            if incluir_registro:
-                                dp = DataPoint(
-                                    timestamp=timestamp_str,
-                                    dispositivo=record.get("Dispositivo"),
-                                    tipo_dato=record.get("TipoDato"),
-                                    valor=record.get("Valor"),
-                                    estado_techo=record.get("EstadoTecho", 0)
-                                )
-                                filtered_data.append(dp)
-
-                        except Exception as e:
-                            print(f"Error procesando registro: {e}")
-
-            # Ordenar por fecha (más recientes primero)
-            filtered_data.sort(key=lambda x: x.timestamp, reverse=True)
-            return filtered_data[:limit]
-
-        except Exception as e:
-            print(f"Error obteniendo datos filtrados: {e}")
-            return []
+        self.valor = valor
+        self.estado_techo = estado_techo
 
     def to_dict(self):
         return {
-            "fecha": self.timestamp.strftime("%d/%m/%Y"),
-            "hora": self.timestamp.strftime("%H:%M:%S"),
+            "fecha": self.fecha,
+            "hora": self.hora,
             "dispositivo": self.dispositivo,
             "tipo_dato": self.tipo_dato,
             "valor": self.valor,
             "estado_techo": self.estado_techo
         }
+
+    @staticmethod
+    def get_by_device_and_type(dispositivo, tipo_dato, limit=100, fecha_inicio=None, fecha_fin=None):
+        db = GoogleSheetsDB()
+        worksheet = db.get_worksheet("Datos")
+        registros = worksheet.get_all_records()
+
+        # Mapeo de tipos de dato del sistema → hoja de cálculo
+        tipo_mapeo = {
+            "temperatura": "Temperatura",
+            "humedad_suelo": "Humedad",  # Si "Humedad" representa suelo
+            "humedad_ambiente": "Humedad Ambiente",  # Si existe otra columna futura
+            "nivel_drenaje": "Nivel Drenaje",
+            "nivel_bomba": "Nivel Bomba"
+        }
+
+        tipo_en_hoja = tipo_mapeo.get(tipo_dato, tipo_dato)
+
+        # Filtrado por dispositivo y tipo de dato (case insensitive)
+        registros_filtrados = [
+            r for r in registros
+            if str(r.get("Dispositivo")).strip().upper() == str(dispositivo).strip().upper()
+            and str(r.get("TipoDato")).strip().lower() == str(tipo_en_hoja).strip().lower()
+        ]
+
+        # Opcional: filtrado por fecha si se provee
+        if fecha_inicio:
+            registros_filtrados = [r for r in registros_filtrados if r.get("Fecha") >= fecha_inicio]
+        if fecha_fin:
+            registros_filtrados = [r for r in registros_filtrados if r.get("Fecha") <= fecha_fin]
+
+        # Tomar los últimos `limit` registros
+        registros_ordenados = registros_filtrados[-limit:]
+
+        # Convertir a DataPoint
+        return [
+            DataPoint(
+                r.get("Fecha"),
+                r.get("Hora"),
+                r.get("Dispositivo"),
+                r.get("TipoDato"),
+                r.get("Valor"),
+                r.get("EstadoTecho", 0)
+            )
+            for r in registros_ordenados
+        ]
+
+    @staticmethod
+    def get_filtered_data(dispositivo=None, tipo_dato=None, fecha_inicio=None, fecha_fin=None, limit=1000):
+        db = GoogleSheetsDB()
+        worksheet = db.get_worksheet("Datos")
+        registros = worksheet.get_all_records()
+
+        # Mapeo de nombres para lectura
+        tipo_mapeo = {
+            "temperatura": "Temperatura",
+            "humedad_suelo": "Humedad",
+            "humedad_ambiente": "Humedad Ambiente",
+            "nivel_drenaje": "Nivel Drenaje",
+            "nivel_bomba": "Nivel Bomba"
+        }
+
+        tipo_en_hoja = tipo_mapeo.get(tipo_dato, tipo_dato) if tipo_dato else None
+
+        # Filtro completo
+        registros_filtrados = []
+        for r in registros:
+            cumple = True
+
+            if dispositivo:
+                cumple &= str(r.get("Dispositivo", "")).strip().upper() == dispositivo.strip().upper()
+
+            if tipo_en_hoja:
+                cumple &= str(r.get("TipoDato", "")).strip().lower() == tipo_en_hoja.strip().lower()
+
+            if fecha_inicio:
+                cumple &= r.get("Fecha") >= fecha_inicio
+            if fecha_fin:
+                cumple &= r.get("Fecha") <= fecha_fin
+
+            if cumple:
+                registros_filtrados.append(r)
+
+        registros_ordenados = registros_filtrados[-limit:]
+
+        return [
+            DataPoint(
+                r.get("Fecha"),
+                r.get("Hora"),
+                r.get("Dispositivo"),
+                r.get("TipoDato"),
+                r.get("Valor"),
+                r.get("EstadoTecho", 0)
+            )
+            for r in registros_ordenados
+        ]
