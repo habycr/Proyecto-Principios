@@ -163,13 +163,8 @@ class Device:
     @staticmethod
     def obtener_alertas(serial_number):
         """
-        Obtiene la configuración de alertas de un dispositivo
-
-        Args:
-            serial_number: Número de serie del dispositivo
-
-        Returns:
-            Diccionario con la configuración de alertas o None si no se encuentra
+        Obtiene la configuración de alertas de un dispositivo desde Google Sheets
+        Maneja correctamente valores nulos y vacíos
         """
         db = GoogleSheetsDB()
         try:
@@ -178,53 +173,60 @@ class Device:
 
             for dispositivo in records:
                 if str(dispositivo['Número de Serie']).strip() == str(serial_number).strip():
-                    # Extraer y parsear las alertas
                     alertas_config = {}
 
-                    # Parsear temperatura (formato: "min-max")
-                    temp_value = dispositivo.get('Alerta_Temperatura', '')
-                    if temp_value and '-' in str(temp_value):
-                        temp_parts = str(temp_value).split('-')
-                        if len(temp_parts) == 2:
-                            alertas_config['temperatura'] = {
-                                'min': temp_parts[0].strip(),
-                                'max': temp_parts[1].strip()
-                            }
+                    # Función auxiliar para limpiar valores
+                    def limpiar_valor(valor):
+                        if valor in [None, '', '0', 0]:
+                            return None
+                        try:
+                            return float(valor)
+                        except (ValueError, TypeError):
+                            return None
 
-                    # Parsear humedad del suelo (formato: "min-max")
-                    hum_suelo_value = dispositivo.get('Alerta_Humedad_Suelo', '')
-                    if hum_suelo_value and '-' in str(hum_suelo_value):
-                        hum_suelo_parts = str(hum_suelo_value).split('-')
-                        if len(hum_suelo_parts) == 2:
-                            alertas_config['humedad_suelo'] = {
-                                'min': hum_suelo_parts[0].strip(),
-                                'max': hum_suelo_parts[1].strip()
-                            }
+                    # Configurar alertas de temperatura
+                    temp_min = limpiar_valor(dispositivo.get('Alerta_Temperatura_min'))
+                    temp_max = limpiar_valor(dispositivo.get('Alerta_Temperatura_max'))
+                    if temp_min is not None or temp_max is not None:
+                        alertas_config['temperatura'] = {
+                            'min': temp_min,
+                            'max': temp_max
+                        }
 
-                    # Parsear humedad ambiente (formato: "min-max")
-                    hum_amb_value = dispositivo.get('Alerta_Humedad_Ambiente', '')
-                    if hum_amb_value and '-' in str(hum_amb_value):
-                        hum_amb_parts = str(hum_amb_value).split('-')
-                        if len(hum_amb_parts) == 2:
-                            alertas_config['humedad_ambiente'] = {
-                                'min': hum_amb_parts[0].strip(),
-                                'max': hum_amb_parts[1].strip()
-                            }
+                    # Configurar alertas de humedad del suelo
+                    hum_suelo_min = limpiar_valor(dispositivo.get('Alerta_Humedad_Suelo_min'))
+                    hum_suelo_max = limpiar_valor(dispositivo.get('Alerta_Humedad_Suelo_max'))
+                    if hum_suelo_min is not None or hum_suelo_max is not None:
+                        alertas_config['humedad_suelo'] = {
+                            'min': hum_suelo_min,
+                            'max': hum_suelo_max
+                        }
 
-                    # Nivel de agua drenaje
-                    nivel_drenaje = dispositivo.get('Alerta_Nivel_Agua_Drenaje', '')
-                    if nivel_drenaje:
-                        alertas_config['nivel_drenaje'] = str(nivel_drenaje).strip()
+                    # Configurar alertas de humedad ambiente
+                    hum_amb_min = limpiar_valor(dispositivo.get('Alerta_Humedad_Ambiente_min'))
+                    hum_amb_max = limpiar_valor(dispositivo.get('Alerta_Humedad_Ambiente_max'))
+                    if hum_amb_min is not None or hum_amb_max is not None:
+                        alertas_config['humedad_ambiente'] = {
+                            'min': hum_amb_min,
+                            'max': hum_amb_max
+                        }
 
-                    # Nivel de agua bomba
-                    nivel_bomba = dispositivo.get('Alerta_Nivel_Agua_Bomba', '')
-                    if nivel_bomba:
-                        alertas_config['nivel_bomba'] = str(nivel_bomba).strip()
+                    # Configurar alertas de nivel de drenaje
+                    nivel_drenaje = limpiar_valor(dispositivo.get('Alerta_Nivel_Agua_Drenaje'))
+                    if nivel_drenaje is not None:
+                        alertas_config['nivel_drenaje'] = nivel_drenaje
 
+                    # Configurar alertas de nivel de bomba
+                    nivel_bomba = limpiar_valor(dispositivo.get('Alerta_Nivel_Agua_Bomba'))
+                    if nivel_bomba is not None:
+                        alertas_config['nivel_bomba'] = nivel_bomba
+
+                    print(f"🔍 Alertas obtenidas para {serial_number}: {alertas_config}")
                     return alertas_config
 
+            print(f"❌ Dispositivo {serial_number} no encontrado")
             return None
 
         except Exception as e:
-            print(f"Error obteniendo alertas del dispositivo: {e}")
+            print(f"❌ Error obteniendo alertas del dispositivo: {e}")
             return None
