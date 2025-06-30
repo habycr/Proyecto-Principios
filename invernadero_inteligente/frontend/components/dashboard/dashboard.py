@@ -339,7 +339,8 @@ class Dashboard:
                 return "redraw"
             elif self.boton_notificaciones.rect.collidepoint(evento.pos):
                 self.en_menu_notificaciones = True
-                self.menu_notificaciones = MenuNotificaciones(self.ancho, self.alto, self.usuario)
+                self.menu_notificaciones = MenuNotificaciones(self.ancho, self.alto, self.usuario, self.device_manager)
+
                 return "redraw"
 
 
