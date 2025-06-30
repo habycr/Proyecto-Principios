@@ -2,7 +2,7 @@ import pygame
 from invernadero_inteligente.frontend.config import config
 from components.usuarios.registro.elementos.boton import Boton
 from invernadero_inteligente.backend.services.google_sheets import GoogleSheetsDB
-
+import datetime
 
 class GestionTicketsAdmin:
     def __init__(self, ancho_ventana, alto_ventana):
@@ -67,11 +67,13 @@ class GestionTicketsAdmin:
         self.tipo_mensaje = 'info'
         self.tiempo_mensaje = 0
 
+
+
         # Botones principales
         self.boton_volver = Boton(
             x=20, y=20,
             ancho=100, alto=40,
-            texto="← Volver",
+            texto="Volver",
             color=config.COLOR_BUTTON_SECONDARY
         )
 
@@ -93,6 +95,41 @@ class GestionTicketsAdmin:
         self.area_tickets = pygame.Rect(50, 80, 300, self.alto - 100)
         self.area_datos = pygame.Rect(370, 80, self.ancho - 390, self.alto - 120)
 
+        # Configuración del menú de llamadas
+        self.mostrar_menu_llamadas = False
+        self.motivo_llamada_opciones = ["Garantía", "Daño", "Mal funcionamiento"]
+        self.motivo_llamada_seleccionado = ""
+        self.descripcion_problema = ""
+        self.acciones_realizadas = ""
+        self.campo_activo_llamadas = ""
+        self.mostrar_dropdown_motivo = False
+
+        # Rectángulos para el menú de llamadas
+        self.rect_motivo = None
+        self.rect_descripcion = None
+        self.rect_acciones = None
+
+        # Botones del menú de llamadas
+        self.boton_abrir_llamada = Boton(
+            x= 50, y=470,
+            ancho=120, alto=35,
+            texto="Llamada",
+            color=(70, 130, 180)
+        )
+
+        self.boton_cerrar_llamada = Boton(
+            x=self.ancho - 190, y=self.alto - 130,
+            ancho=180, alto=35,
+            texto="Cerrar Llamada",
+            color=(220, 20, 60)
+        )
+        self.boton_guardar_llamada = Boton(
+            x=self.ancho - 380, y=self.alto - 130,
+            ancho=180, alto=35,
+            texto="Guardar Datos",
+            color=(34, 139, 34)
+        )
+
         # Cargar tickets al inicializar
         self.cargar_tickets()
 
@@ -106,6 +143,7 @@ class GestionTicketsAdmin:
 
     def cargar_datos_ticket(self, ticket_id):
         """Carga los datos de un ticket específico"""
+
         try:
             self.ticket_seleccionado = next(
                 (t for t in self.tickets if str(t['ticket_id']) == str(ticket_id)), None)
@@ -119,6 +157,13 @@ class GestionTicketsAdmin:
                 self.mostrar_mensaje_temporal("Ticket no encontrado", "error")
         except Exception as e:
             self.mostrar_mensaje_temporal(f"Error al cargar datos: {str(e)}", "error")
+
+    def cargar_datos_llamada(self):
+        """Carga los datos de llamada del ticket seleccionado"""
+        if self.ticket_seleccionado:
+            self.motivo_llamada_seleccionado = self.ticket_seleccionado.get('Motivo', '')
+            self.descripcion_problema = self.ticket_seleccionado.get('Descripción del problema', '')
+            self.acciones_realizadas = self.ticket_seleccionado.get('Acciones realizadas', '')
 
     def guardar_cambios(self):
         """Guarda los cambios del ticket en Google Sheets"""
@@ -194,6 +239,16 @@ class GestionTicketsAdmin:
                     self.cargar_datos_ticket(self.ticket_seleccionado['ticket_id'])
             elif self.boton_guardar.rect.collidepoint(pos):
                 self.guardar_cambios()
+            elif self.boton_abrir_llamada.rect.collidepoint(pos):
+                if self.ticket_seleccionado:
+                    self.mostrar_menu_llamadas = not self.mostrar_menu_llamadas
+                    if self.mostrar_menu_llamadas:
+                        self.cargar_datos_llamada()
+            elif self.mostrar_menu_llamadas:
+                self.manejar_eventos_menu_llamadas(pos)
+                return
+                # Manejar eventos del menú de llamadas si está visible
+
 
             # Click en tickets de la lista
             for i, rect in enumerate(self.item_rects):
@@ -244,6 +299,119 @@ class GestionTicketsAdmin:
                 if campo == 'Descripcion':
                     self.posicion_cursor_descripcion = len(self.campos_editables['Descripcion'])
                 break
+
+    def manejar_eventos_menu_llamadas(self, pos):
+        """Maneja los eventos específicos del menú de llamadas"""
+        # Cerrar llamada
+        if self.boton_cerrar_llamada.rect.collidepoint(pos):
+            self.cerrar_llamada()
+            return
+
+        # Guardar datos de llamada
+        if self.boton_guardar_llamada.rect.collidepoint(pos):
+            self.guardar_datos_llamada()
+            return
+
+
+        # Click en dropdown del motivo
+        if self.rect_motivo and self.rect_motivo.collidepoint(pos):
+            self.mostrar_dropdown_motivo = not self.mostrar_dropdown_motivo
+            self.campo_activo_llamadas = ""
+            return
+
+        # Selección de motivo del dropdown (horizontal)
+        if self.mostrar_dropdown_motivo:
+            dropdown_width = 120
+            for i, opcion in enumerate(self.motivo_llamada_opciones):
+                dropdown_rect = pygame.Rect(
+                    self.rect_motivo.x + i * dropdown_width,
+                    self.rect_motivo.y + self.rect_motivo.height + 5,
+                    dropdown_width - 5, 25
+                )
+                if dropdown_rect.collidepoint(pos):
+                    self.motivo_llamada_seleccionado = opcion
+                    self.mostrar_dropdown_motivo = False
+                    return
+
+        # Click en campos de texto
+        if self.rect_descripcion and self.rect_descripcion.collidepoint(pos):
+            self.campo_activo_llamadas = "Descripcion"
+            self.mostrar_dropdown_motivo = False
+        elif self.rect_acciones and self.rect_acciones.collidepoint(pos):
+            self.campo_activo_llamadas = "Acciones"
+            self.mostrar_dropdown_motivo = False
+        else:
+            self.campo_activo_llamadas = ""
+            self.mostrar_dropdown_motivo = False
+
+    def cerrar_llamada(self):
+        """Cierra la llamada y guarda los datos en Google Sheets"""
+        if not self.ticket_seleccionado:
+            self.mostrar_mensaje_temporal("No hay ticket seleccionado", "error")
+            return
+
+        if not self.motivo_llamada_seleccionado:
+            self.mostrar_mensaje_temporal("Debe seleccionar un motivo", "error")
+            return
+
+        try:
+            # Fecha actual
+            fecha_cierre = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+            # Datos a actualizar
+            updates = {
+                'Motivo': self.motivo_llamada_seleccionado,
+                'Descripción del problema': self.descripcion_problema,
+                'Acciones realizadas': self.acciones_realizadas,
+                'Fecha Cierre': fecha_cierre,
+                'Status': 'Cerrado'
+            }
+
+            # Actualizar en Google Sheets
+            self.gsheets.update_ticket(self.ticket_seleccionado['ticket_id'], updates)
+
+            # Actualizar localmente
+            for key, value in updates.items():
+                self.ticket_seleccionado[key] = value
+
+            # Registrar cambios en historial
+            for campo, valor in updates.items():
+                if campo != 'Fecha_Cierre':  # No registrar fecha automática
+                    self.registrar_cambio(campo, '', valor)
+
+            self.mostrar_mensaje_temporal("Llamada cerrada correctamente", "success")
+            self.mostrar_menu_llamadas = False
+            self.cargar_tickets()  # Recargar lista
+
+        except Exception as e:
+            self.mostrar_mensaje_temporal(f"Error al cerrar llamada: {str(e)}", "error")
+
+    def guardar_datos_llamada(self):
+        """Guarda los datos de llamada sin cerrar el ticket"""
+        if not self.ticket_seleccionado:
+            self.mostrar_mensaje_temporal("No hay ticket seleccionado", "error")
+            return
+
+        try:
+            # Datos a actualizar
+            updates = {
+                'Motivo': self.motivo_llamada_seleccionado,
+                'Descripción del problema': self.descripcion_problema,
+                'Acciones realizadas': self.acciones_realizadas
+            }
+
+            # Actualizar en Google Sheets
+            self.gsheets.update_ticket(self.ticket_seleccionado['ticket_id'], updates)
+
+            # Actualizar localmente
+            for key, value in updates.items():
+                self.ticket_seleccionado[key] = value
+
+            self.mostrar_mensaje_temporal("Datos de llamada guardados", "success")
+
+        except Exception as e:
+            self.mostrar_mensaje_temporal(f"Error al guardar datos: {str(e)}", "error")
+
 
     def dibujar_historial(self, superficie):
         """Dibuja el historial de cambios"""
@@ -296,6 +464,10 @@ class GestionTicketsAdmin:
 
     def manejar_entrada_texto(self, evento):
         """Maneja la entrada de texto en los campos activos con mayor precisión"""
+        if self.mostrar_menu_llamadas and self.campo_activo_llamadas:
+            self.manejar_entrada_menu_llamadas(evento)
+            return
+
         for campo, activo in self.campos_activos.items():
             if activo and campo not in self.campos_no_editables:
                 # Reiniciar temporizador del cursor
@@ -316,6 +488,10 @@ class GestionTicketsAdmin:
                     elif len(self.campos_editables[campo]) < 100:  # Límite para otros campos
                         if evento.unicode.isprintable():
                             self.campos_editables[campo] += evento.unicode
+                        break
+                    if self.mostrar_menu_llamadas and self.campo_activo_llamadas:
+                        self.manejar_entrada_menu_llamadas(evento)
+                        return
                 break
 
     def manejar_entrada_descripcion(self, evento):
@@ -363,6 +539,11 @@ class GestionTicketsAdmin:
                                                                                             self.posicion_cursor_descripcion:]
             self.posicion_cursor_descripcion += 1
             self.campos_editables['Descripcion'] = descripcion
+
+    def manejar_entrada_menu_llamadas(self, evento):
+        """Maneja la entrada de texto en los campos del menú de llamadas"""
+        if self.campo_activo_llamadas in ["Descripcion", "Acciones"]:
+            self.manejar_entrada_descripcion_llamada(evento, self.campo_activo_llamadas)
 
     def obtener_lineas_descripcion(self):
         """Divide el texto de la descripción en líneas de máximo 23 caracteres"""
@@ -430,6 +611,9 @@ class GestionTicketsAdmin:
                 self.tiempo_cursor = tiempo_actual
         else:
             self.cursor_visible = False
+            # Mostrar/ocultar menú de llamadas según el estado
+        if self.ticket_seleccionado:
+            status = self.ticket_seleccionado.get('Status', '').lower()
 
     def dibujar(self, superficie):
         """Dibuja toda la interfaz"""
@@ -443,6 +627,9 @@ class GestionTicketsAdmin:
         self.boton_volver.dibujar(superficie)
         self.boton_refrescar.dibujar(superficie)
         self.boton_guardar.dibujar(superficie)
+        # Botón de llamada (solo si hay ticket seleccionado)
+        if self.ticket_seleccionado:
+            self.boton_abrir_llamada.dibujar(superficie)
 
         # Lista de tickets
         self.dibujar_lista_tickets(superficie)
@@ -453,6 +640,10 @@ class GestionTicketsAdmin:
 
         #Añadir el hisotrial
         self.dibujar_historial(superficie)
+
+        # Menú de llamadas
+        if self.mostrar_menu_llamadas:
+            self.dibujar_menu_llamadas(superficie)
 
         # Mensaje de estado
         if self.mostrar_mensaje:
@@ -683,3 +874,163 @@ class GestionTicketsAdmin:
         pygame.draw.rect(superficie, (240, 240, 240), fondo_rect)
         pygame.draw.rect(superficie, color, fondo_rect, 2)
         superficie.blit(mensaje_surface, (fondo_rect.x + 10, fondo_rect.y + 5))
+
+    def dibujar_menu_llamadas(self, superficie):
+        """Dibuja el menú de gestión de llamadas"""
+        # Fondo del menú
+        menu_rect = pygame.Rect(self.ancho - 650, 350, 380, 300)
+        pygame.draw.rect(superficie, (240, 240, 240), menu_rect)
+        pygame.draw.rect(superficie, (0, 0, 0), menu_rect, 2)
+
+        # Título
+        titulo = self.fuente_normal.render("Gestión de Llamada", True, (0, 0, 0))
+        superficie.blit(titulo, (menu_rect.x + 10, menu_rect.y + 20))
+
+        y_pos = menu_rect.y + 45
+
+        # Motivo
+        etiqueta_motivo = self.fuente_pequena.render("Motivo:", True, (0, 0, 0))
+        superficie.blit(etiqueta_motivo, (menu_rect.x + 10, y_pos))
+
+        self.rect_motivo = pygame.Rect(menu_rect.x + 80, y_pos - 2, 200, 25)
+        color_motivo = (255, 255, 255) if not self.mostrar_dropdown_motivo else (255, 255, 200)
+        pygame.draw.rect(superficie, color_motivo, self.rect_motivo)
+        pygame.draw.rect(superficie, (0, 0, 0), self.rect_motivo, 1)
+
+        texto_motivo = self.motivo_llamada_seleccionado or "Seleccionar..."
+        texto_surface = self.fuente_pequena.render(texto_motivo, True, (0, 0, 0))
+        superficie.blit(texto_surface, (self.rect_motivo.x + 5, self.rect_motivo.y + 3))
+
+        # Dropdown del motivo
+        if self.mostrar_dropdown_motivo:
+            dropdown_width = 120  # Ancho por opción
+            total_width = len(self.motivo_llamada_opciones) * dropdown_width
+
+            for i, opcion in enumerate(self.motivo_llamada_opciones):
+                dropdown_rect = pygame.Rect(
+                    self.rect_motivo.x + i * dropdown_width,
+                    self.rect_motivo.y + self.rect_motivo.height + 5,
+                    dropdown_width - 5, 25  # -5 para espacio entre opciones
+                )
+
+                # Color hover
+                mouse_pos = pygame.mouse.get_pos()
+                color_fondo = (230, 230, 255) if dropdown_rect.collidepoint(mouse_pos) else (255, 255, 255)
+
+                pygame.draw.rect(superficie, color_fondo, dropdown_rect)
+                pygame.draw.rect(superficie, (0, 0, 0), dropdown_rect, 1)
+                opcion_surface = self.fuente_pequena.render(opcion, True, (0, 0, 0))
+                superficie.blit(opcion_surface, (dropdown_rect.x + 5, dropdown_rect.y + 3))
+
+        # Descripción del problema
+        etiqueta_desc = self.fuente_pequena.render("Descripción:", True, (0, 0, 0))
+        superficie.blit(etiqueta_desc, (menu_rect.x + 10, y_pos + 35))
+
+        self.rect_descripcion = pygame.Rect(menu_rect.x + 10, y_pos + 62, 360, 60)
+        color_desc = (255, 255, 200) if self.campo_activo_llamadas == "Descripcion" else (255, 255, 255)
+        pygame.draw.rect(superficie, color_desc, self.rect_descripcion)
+        pygame.draw.rect(superficie, (0, 0, 0), self.rect_descripcion, 1)
+
+        # Texto de descripción (multilinea simple)
+        lineas_desc = self.obtener_lineas_texto_llamada(self.descripcion_problema, "Descripcion")
+        for i, linea in enumerate(lineas_desc[:4]):  # Máximo 2 líneas
+            texto_surface = self.fuente_pequena.render(linea, True, (0, 0, 0))
+            superficie.blit(texto_surface, (self.rect_descripcion.x + 5, self.rect_descripcion.y + 5 + i * 20))
+
+        y_pos += 110
+
+        # Acciones realizadas
+        etiqueta_acc = self.fuente_pequena.render("Acciones:", True, (0, 0, 0))
+        superficie.blit(etiqueta_acc, (menu_rect.x + 10, y_pos + 15))
+
+        self.rect_acciones = pygame.Rect(menu_rect.x + 10, y_pos + 45, 360, 60)
+        color_acc = (255, 255, 200) if self.campo_activo_llamadas == "Acciones" else (255, 255, 255)
+        pygame.draw.rect(superficie, color_acc, self.rect_acciones)
+        pygame.draw.rect(superficie, (0, 0, 0), self.rect_acciones, 1)
+
+        # Texto de acciones (multilinea simple)
+        lineas_acc = [self.acciones_realizadas[i:i + 45] for i in range(0, len(self.acciones_realizadas), 45)]
+        for i, linea in enumerate(lineas_acc[:4]):  # Máximo 2 líneas
+            texto_surface = self.fuente_pequena.render(linea, True, (0, 0, 0))
+            superficie.blit(texto_surface, (self.rect_acciones.x + 5, self.rect_acciones.y + 5 + i * 20))
+
+        mouse_pos = pygame.mouse.get_pos()
+
+        # Para el campo de descripción:
+        color_desc = (255, 255, 200) if self.campo_activo_llamadas == "Descripcion" else \
+            (245, 245, 245) if self.rect_descripcion.collidepoint(mouse_pos) else (255, 255, 255)
+
+        # Para el campo de acciones:
+        color_acc = (255, 255, 200) if self.campo_activo_llamadas == "Acciones" else \
+            (245, 245, 245) if self.rect_acciones.collidepoint(mouse_pos) else (255, 255, 255)
+
+        # Cursor para descripción
+        if self.campo_activo_llamadas == "Descripcion" and self.cursor_visible:
+            cursor_x = self.rect_descripcion.x + 5 + self.fuente_pequena.size(self.descripcion_problema[-45:])[0]
+            cursor_y = self.rect_descripcion.y + 5 + (len(self.descripcion_problema) // 45) * 20
+            pygame.draw.line(superficie, (0, 0, 0), (cursor_x, cursor_y), (cursor_x, cursor_y + 15), 2)
+
+        # Cursor para acciones
+        if self.campo_activo_llamadas == "Acciones" and self.cursor_visible:
+            cursor_x = self.rect_acciones.x + 5 + self.fuente_pequena.size(self.acciones_realizadas[-45:])[0]
+            cursor_y = self.rect_acciones.y + 5 + (len(self.acciones_realizadas) // 45) * 20
+            pygame.draw.line(superficie, (0, 0, 0), (cursor_x, cursor_y), (cursor_x, cursor_y + 15), 2)
+
+        # Botón cerrar llamada
+        self.boton_cerrar_llamada.dibujar(superficie)
+
+        # Botón cerrar llamada
+        self.boton_cerrar_llamada.dibujar(superficie)
+
+        # Botón guardar datos
+        self.boton_guardar_llamada.dibujar(superficie)
+
+    def obtener_lineas_texto_llamada(self, texto, campo):
+        """Divide el texto en líneas de máximo 23 caracteres para campos de llamada"""
+        lineas = []
+        linea_actual = ""
+
+        for caracter in texto:
+            if caracter == '\n' or len(linea_actual) >= 23:
+                lineas.append(linea_actual)
+                linea_actual = ""
+                if caracter != '\n':
+                    linea_actual += caracter
+            else:
+                linea_actual += caracter
+
+        if linea_actual:
+            lineas.append(linea_actual)
+
+        return lineas
+
+    def manejar_entrada_descripcion_llamada(self, evento, campo):
+        """Maneja entrada de texto multilínea para campos del menú de llamadas"""
+        if campo == "Descripcion":
+            texto = self.descripcion_problema
+        else:  # Acciones
+            texto = self.acciones_realizadas
+
+        if evento.key == pygame.K_BACKSPACE:
+            if len(texto) > 0:
+                texto = texto[:-1]
+        elif evento.key == pygame.K_RETURN:
+            lineas = self.obtener_lineas_texto_llamada(texto, campo)
+            if len(lineas) < 4:  # Máximo 4 líneas
+                texto += '\n'
+        elif evento.key == pygame.K_ESCAPE:
+            self.campo_activo_llamadas = ""
+        elif evento.key == pygame.K_TAB:
+            # Cambiar entre campos de llamada
+            if campo == "Descripcion":
+                self.campo_activo_llamadas = "Acciones"
+            else:
+                self.campo_activo_llamadas = "Descripcion"
+        elif len(texto) < 180 and evento.unicode and evento.unicode.isprintable():  # Más espacio
+            texto += evento.unicode
+
+        # Actualizar el campo correspondiente
+        if campo == "Descripcion":
+            self.descripcion_problema = texto
+        else:
+            self.acciones_realizadas = texto
