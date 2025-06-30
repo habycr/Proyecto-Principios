@@ -853,7 +853,7 @@ class Dashboard:
             # Verificar que tenemos un número de serie válido
             numero_serie = self.usuario.get('numero_serie')
             if not numero_serie:
-                print("❌ No se encontró número de serie en el usuario")
+                print(" No se encontró número de serie en el usuario")
                 return False
 
             # Obtener fecha y hora actuales con time
@@ -865,7 +865,7 @@ class Dashboard:
                 if numero_serie:
                     numero_serie = numero_serie[0]
                 else:
-                    print("❌ La lista de número de serie está vacía")
+                    print(" La lista de número de serie está vacía")
                     return False
 
             datos_a_subir = [
@@ -920,17 +920,17 @@ class Dashboard:
                 }
             ]
 
-            print("ℹ️ Intentando subir datos:", datos_a_subir)
+            print(" Intentando subir datos:", datos_a_subir)
             response = APIService.subir_datos_sensores(datos_a_subir)
 
             if response.get("status") == "success":
-                print("✅ Datos subidos correctamente a Google Sheets")
+                print(" Datos subidos correctamente a Google Sheets")
                 return True
             else:
-                print(f"❌ Error al subir datos: {response.get('message', 'Error desconocido')}")
+                print(f" Error al subir datos: {response.get('message', 'Error desconocido')}")
                 return False
         except Exception as e:
-            print(f"❌ Error en subir_datos_sensores: {str(e)}")
+            print(f" Error en subir_datos_sensores: {str(e)}")
             return False
 
     def _obtener_numero_serie(self, usuario):
@@ -943,22 +943,22 @@ class Dashboard:
     def _configurar_luz_automatica(self):
         """Configura el control automático de la luz"""
         if not self.numero_serie:
-            print("❌ No se pudo configurar luz automática: número de serie no disponible")
+            print(" No se pudo configurar luz automática: número de serie no disponible")
             return
 
         try:
-            print(f"🔍 Obteniendo horario para dispositivo: {self.numero_serie}")
+            print(f" Obteniendo horario para dispositivo: {self.numero_serie}")
             response = APIService.obtener_horario_luz(self.numero_serie)
 
             if not response:
-                print("❌ No se recibió respuesta del servidor")
+                print(" No se recibió respuesta del servidor")
                 return
 
-            print(f"📡 Respuesta del servidor: {response}")
+            print(f" Respuesta del servidor: {response}")
 
             if response.get('status') != 'success':
                 error_msg = response.get('message', 'Error desconocido')
-                print(f"❌ Error en la respuesta: {error_msg}")
+                print(f" Error en la respuesta: {error_msg}")
                 return
 
             horario = response.get('data', {})
@@ -966,10 +966,10 @@ class Dashboard:
             fin = horario.get('fin')
 
             if not inicio or not fin:
-                print("❌ Horario incompleto en la respuesta")
+                print(" Horario incompleto en la respuesta")
                 return
 
-            print(f"🕒 Configurando luz automática: {inicio} - {fin}")
+            print(f" Configurando luz automática: {inicio} - {fin}")
             self.device_manager.configurar_luz_automatica({
                 'inicio': inicio,
                 'fin': fin
@@ -980,4 +980,4 @@ class Dashboard:
             self.device_manager.iniciar_verificacion_periodica()
 
         except Exception as e:
-            print(f"❌ Error en _configurar_luz_automatica: {str(e)}")
+            print(f" Error en _configurar_luz_automatica: {str(e)}")

@@ -48,12 +48,6 @@ class DeviceManager:
     def controlar_dispositivo(self, dispositivo: str) -> dict:
         """
         Controla un dispositivo específico (enciende/apaga o abre/cierra)
-
-        Args:
-            dispositivo: Nombre del dispositivo a controlar
-
-        Returns:
-            dict: Resultado de la operación con éxito, nuevo estado y texto del botón
         """
         if dispositivo not in self.device_mappings:
             return {
@@ -69,15 +63,18 @@ class DeviceManager:
 
         # Determinar acción según el estado actual
         if dispositivo == "techo":
-            accion = mapping["acciones"]["cerrar"] if estado_actual else mapping["acciones"]["abrir"]
-        else:
-            accion = mapping["acciones"]["apagar"] if estado_actual else mapping["acciones"]["encender"]
+            if estado_actual:
+                # Si el techo está abierto, cerrarlo (mover hacia atrás y luego parar)
+                self.esp32.enviar_comando(mapping["endpoint"], "atras")
+                time.sleep(0.5)  # Esperar 500ms
+                self.esp32.enviar_comando(mapping["endpoint"], "stop")
+                nuevo_estado = False
+            else:
+                # Si el techo está cerrado, abrirlo (mover hacia adelante)
+                self.esp32.enviar_comando(mapping["endpoint"], "adelante")
+                nuevo_estado = True
 
-        # Enviar comando
-        exito = self.esp32.enviar_comando(mapping["endpoint"], accion)
-
-        if exito:
-            nuevo_estado = not estado_actual
+            # Actualizar el estado del techo
             self.esp32.establecer_estado_dispositivo(dispositivo, nuevo_estado)
 
             # Determinar nuevo texto y color
@@ -90,7 +87,7 @@ class DeviceManager:
 
             return {
                 "exito": True,
-                "mensaje": f"{dispositivo} {'activado' if nuevo_estado else 'desactivado'} correctamente",
+                "mensaje": f"Techo {'abierto' if nuevo_estado else 'cerrado'} correctamente",
                 "nuevo_estado": nuevo_estado,
                 "nuevo_texto": nuevo_texto,
                 "nuevo_color": nuevo_color
