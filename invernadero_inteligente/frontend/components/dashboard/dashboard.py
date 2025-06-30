@@ -108,7 +108,7 @@ class Dashboard:
         )
         # Botón para notificaciones
         self.boton_notificaciones = Boton(
-            x=300,
+            x=50,
             y=500,
             ancho=200,
             alto=50,
@@ -136,10 +136,10 @@ class Dashboard:
         )
         # Botón para actualizar sensores manualmente
         self.boton_actualizar_sensores = Boton(
-            x=300,
-            y=430,  # Después del botón de alertas
-            ancho=200,
-            alto=50,
+            x=50,
+            y=620,  # Después del botón de alertas
+            ancho=220,
+            alto=60,
             texto="Actualizar Sensores",
             color=config.COLOR_BUTTON_SECONDARY
         )
@@ -228,7 +228,7 @@ class Dashboard:
         self.boton_soporte = Boton(
             x=self.ancho - 170,
             y=200,
-            ancho=150,
+            ancho=160,
             alto=40,
             texto="Soporte técnico",
             color=config.COLOR_BUTTON_SECONDARY
@@ -485,7 +485,7 @@ class Dashboard:
 
     def dibujar_popup_abono(self, superficie):
         """Dibuja el pop-up de abono centrado en la pantalla - MEJORADO DEL DASHBOARD 2"""
-        ancho_popup = 400
+        ancho_popup = 250
         alto_popup = 200
 
         # Posición centrada
@@ -532,7 +532,7 @@ class Dashboard:
         """Dibuja el panel de información de sensores"""
         # Panel de sensores en la parte derecha
         panel_x = self.ancho - 280
-        panel_y = 260
+        panel_y = 480
         panel_ancho = 260
         panel_alto = 280
 
@@ -853,7 +853,7 @@ class Dashboard:
             # Verificar que tenemos un número de serie válido
             numero_serie = self.usuario.get('numero_serie')
             if not numero_serie:
-                print("❌ No se encontró número de serie en el usuario")
+                print(" No se encontró número de serie en el usuario")
                 return False
 
             # Obtener fecha y hora actuales con time
@@ -865,7 +865,7 @@ class Dashboard:
                 if numero_serie:
                     numero_serie = numero_serie[0]
                 else:
-                    print("❌ La lista de número de serie está vacía")
+                    print(" La lista de número de serie está vacía")
                     return False
 
             datos_a_subir = [
@@ -920,17 +920,17 @@ class Dashboard:
                 }
             ]
 
-            print("ℹ️ Intentando subir datos:", datos_a_subir)
+            print(" Intentando subir datos:", datos_a_subir)
             response = APIService.subir_datos_sensores(datos_a_subir)
 
             if response.get("status") == "success":
-                print("✅ Datos subidos correctamente a Google Sheets")
+                print(" Datos subidos correctamente a Google Sheets")
                 return True
             else:
-                print(f"❌ Error al subir datos: {response.get('message', 'Error desconocido')}")
+                print(f" Error al subir datos: {response.get('message', 'Error desconocido')}")
                 return False
         except Exception as e:
-            print(f"❌ Error en subir_datos_sensores: {str(e)}")
+            print(f" Error en subir_datos_sensores: {str(e)}")
             return False
 
     def _obtener_numero_serie(self, usuario):
@@ -943,22 +943,22 @@ class Dashboard:
     def _configurar_luz_automatica(self):
         """Configura el control automático de la luz"""
         if not self.numero_serie:
-            print("❌ No se pudo configurar luz automática: número de serie no disponible")
+            print(" No se pudo configurar luz automática: número de serie no disponible")
             return
 
         try:
-            print(f"🔍 Obteniendo horario para dispositivo: {self.numero_serie}")
+            print(f" Obteniendo horario para dispositivo: {self.numero_serie}")
             response = APIService.obtener_horario_luz(self.numero_serie)
 
             if not response:
-                print("❌ No se recibió respuesta del servidor")
+                print(" No se recibió respuesta del servidor")
                 return
 
-            print(f"📡 Respuesta del servidor: {response}")
+            print(f" Respuesta del servidor: {response}")
 
             if response.get('status') != 'success':
                 error_msg = response.get('message', 'Error desconocido')
-                print(f"❌ Error en la respuesta: {error_msg}")
+                print(f" Error en la respuesta: {error_msg}")
                 return
 
             horario = response.get('data', {})
@@ -966,10 +966,10 @@ class Dashboard:
             fin = horario.get('fin')
 
             if not inicio or not fin:
-                print("❌ Horario incompleto en la respuesta")
+                print(" Horario incompleto en la respuesta")
                 return
 
-            print(f"🕒 Configurando luz automática: {inicio} - {fin}")
+            print(f" Configurando luz automática: {inicio} - {fin}")
             self.device_manager.configurar_luz_automatica({
                 'inicio': inicio,
                 'fin': fin
@@ -980,4 +980,4 @@ class Dashboard:
             self.device_manager.iniciar_verificacion_periodica()
 
         except Exception as e:
-            print(f"❌ Error en _configurar_luz_automatica: {str(e)}")
+            print(f" Error en _configurar_luz_automatica: {str(e)}")
