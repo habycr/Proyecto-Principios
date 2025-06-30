@@ -108,7 +108,7 @@ class Dashboard:
         )
         # Botón para notificaciones
         self.boton_notificaciones = Boton(
-            x=300,
+            x=50,
             y=500,
             ancho=200,
             alto=50,
@@ -136,10 +136,10 @@ class Dashboard:
         )
         # Botón para actualizar sensores manualmente
         self.boton_actualizar_sensores = Boton(
-            x=300,
-            y=430,  # Después del botón de alertas
-            ancho=200,
-            alto=50,
+            x=50,
+            y=620,  # Después del botón de alertas
+            ancho=220,
+            alto=60,
             texto="Actualizar Sensores",
             color=config.COLOR_BUTTON_SECONDARY
         )
@@ -228,7 +228,7 @@ class Dashboard:
         self.boton_soporte = Boton(
             x=self.ancho - 170,
             y=200,
-            ancho=150,
+            ancho=160,
             alto=40,
             texto="Soporte técnico",
             color=config.COLOR_BUTTON_SECONDARY
@@ -485,7 +485,7 @@ class Dashboard:
 
     def dibujar_popup_abono(self, superficie):
         """Dibuja el pop-up de abono centrado en la pantalla - MEJORADO DEL DASHBOARD 2"""
-        ancho_popup = 400
+        ancho_popup = 250
         alto_popup = 200
 
         # Posición centrada
@@ -532,7 +532,7 @@ class Dashboard:
         """Dibuja el panel de información de sensores"""
         # Panel de sensores en la parte derecha
         panel_x = self.ancho - 280
-        panel_y = 260
+        panel_y = 480
         panel_ancho = 260
         panel_alto = 280
 
