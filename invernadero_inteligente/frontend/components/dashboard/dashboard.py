@@ -29,11 +29,16 @@ class Dashboard:
         self.fuente_titulo = pygame.font.Font(None, 36)
         self.fuente_normal = pygame.font.Font(None, 28)
         self.fuente_pequena = pygame.font.Font(None, 24)
+        # Obtener número de serie del usuario
+        self.numero_serie = self._obtener_numero_serie(usuario)
+
 
         # Inicializar controladores ESP32
         self.esp32_controller = ESP32Controller("http://192.168.0.17")
         self.device_manager = DeviceManager(self.esp32_controller)
 
+        # Configurar luz automática al iniciar
+        self._configurar_luz_automatica()
         # Cargar la imagen
         self.imagen = Dashboard.cargar_imagen_desde_github()
 
@@ -334,7 +339,8 @@ class Dashboard:
                 return "redraw"
             elif self.boton_notificaciones.rect.collidepoint(evento.pos):
                 self.en_menu_notificaciones = True
-                self.menu_notificaciones = MenuNotificaciones(self.ancho, self.alto, self.usuario)
+                self.menu_notificaciones = MenuNotificaciones(self.ancho, self.alto, self.usuario, self.device_manager)
+
                 return "redraw"
 
 
@@ -847,7 +853,7 @@ class Dashboard:
             # Verificar que tenemos un número de serie válido
             numero_serie = self.usuario.get('numero_serie')
             if not numero_serie:
-                print("❌ No se encontró número de serie en el usuario")
+                print(" No se encontró número de serie en el usuario")
                 return False
 
             # Obtener fecha y hora actuales con time
@@ -859,7 +865,7 @@ class Dashboard:
                 if numero_serie:
                     numero_serie = numero_serie[0]
                 else:
-                    print("❌ La lista de número de serie está vacía")
+                    print(" La lista de número de serie está vacía")
                     return False
 
             datos_a_subir = [
@@ -914,15 +920,64 @@ class Dashboard:
                 }
             ]
 
-            print("ℹ️ Intentando subir datos:", datos_a_subir)
+            print(" Intentando subir datos:", datos_a_subir)
             response = APIService.subir_datos_sensores(datos_a_subir)
 
             if response.get("status") == "success":
-                print("✅ Datos subidos correctamente a Google Sheets")
+                print(" Datos subidos correctamente a Google Sheets")
                 return True
             else:
-                print(f"❌ Error al subir datos: {response.get('message', 'Error desconocido')}")
+                print(f" Error al subir datos: {response.get('message', 'Error desconocido')}")
                 return False
         except Exception as e:
-            print(f"❌ Error en subir_datos_sensores: {str(e)}")
+            print(f" Error en subir_datos_sensores: {str(e)}")
             return False
+
+    def _obtener_numero_serie(self, usuario):
+        """Obtiene el número de serie del usuario"""
+        numero_serie = usuario.get('numero_serie')
+        if isinstance(numero_serie, list) and numero_serie:
+            return numero_serie[0]
+        return numero_serie if numero_serie else None
+
+    def _configurar_luz_automatica(self):
+        """Configura el control automático de la luz"""
+        if not self.numero_serie:
+            print(" No se pudo configurar luz automática: número de serie no disponible")
+            return
+
+        try:
+            print(f" Obteniendo horario para dispositivo: {self.numero_serie}")
+            response = APIService.obtener_horario_luz(self.numero_serie)
+
+            if not response:
+                print(" No se recibió respuesta del servidor")
+                return
+
+            print(f" Respuesta del servidor: {response}")
+
+            if response.get('status') != 'success':
+                error_msg = response.get('message', 'Error desconocido')
+                print(f" Error en la respuesta: {error_msg}")
+                return
+
+            horario = response.get('data', {})
+            inicio = horario.get('inicio')
+            fin = horario.get('fin')
+
+            if not inicio or not fin:
+                print(" Horario incompleto en la respuesta")
+                return
+
+            print(f" Configurando luz automática: {inicio} - {fin}")
+            self.device_manager.configurar_luz_automatica({
+                'inicio': inicio,
+                'fin': fin
+            })
+
+            # Verificar estado inmediatamente
+            self.device_manager.verificar_estado_luz()
+            self.device_manager.iniciar_verificacion_periodica()
+
+        except Exception as e:
+            print(f" Error en _configurar_luz_automatica: {str(e)}")

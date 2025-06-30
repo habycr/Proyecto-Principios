@@ -101,3 +101,46 @@ def obtener_alertas_dispositivo(serial_number):
     except Exception as e:
         print(f"Error obteniendo alertas: {e}")
         return jsonify({"status": "error", "message": "Error interno del servidor"}), 500
+
+
+# Agregar al final de device_routes.py
+
+@device_bp.route('/dispositivo/<serial_number>/horario_luz', methods=['GET'])
+def obtener_horario_luz(serial_number):
+    """Obtiene el horario de luz artificial para un dispositivo"""
+    try:
+        print(f"🔍 Buscando horario para dispositivo: {serial_number}")
+        dispositivo = Device.obtener_por_serie(serial_number)
+
+        if not dispositivo:
+            print(f"❌ Dispositivo {serial_number} no encontrado")
+            return jsonify({
+                "status": "error",
+                "message": f"Dispositivo {serial_number} no encontrado"
+            }), 404
+
+        horario = {
+            "inicio": dispositivo.get('Horario_Luz_Artificial_inicio'),
+            "fin": dispositivo.get('Horario_Luz_Artificial_fin')
+        }
+
+        print(f"📅 Horario encontrado: {horario}")
+
+        if not horario['inicio'] or not horario['fin']:
+            print("⚠️ Horario incompleto o no configurado")
+            return jsonify({
+                "status": "error",
+                "message": "Horario no configurado para este dispositivo"
+            }), 404
+
+        return jsonify({
+            "status": "success",
+            "data": horario
+        })
+
+    except Exception as e:
+        print(f"❌ Error obteniendo horario luz: {str(e)}")
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 500
